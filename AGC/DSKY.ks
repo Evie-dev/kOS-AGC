@@ -589,7 +589,7 @@ FUNCTION DSKY_INPUT_HANDLER {
                 set _validInput to false.
             } 
             // is it too long?
-            IF _currentInputValue:length >= 5 {
+            IF _currentInputValue:length > 5 {
                 // haha no, OPP ERR for you my good friend!
                 set _validInput to false.
             }
@@ -604,9 +604,7 @@ FUNCTION DSKY_INPUT_HANDLER {
 
         }
     }
-    print _validInput.
-    print _inputLocation.
-    IF _validInput {
+    IF _validInput and _DSKYdisplayREG:haskey(_inputLocation) {
         // CONGRATULATIONS! THIS IS A VALID INPUT FOR THE DSKY
         set _DSKYdisplayREG[_inputLocation] to _DSKYdisplayREG[_inputLocation]+input.
     } ELSE {
@@ -714,7 +712,6 @@ LOCAL FUNCTION DSKY_ENTER {
             set _DSKY_STATE:INPUT_MODE TO "R1".
             set _DSKYdisplayREG:R1 to "".
         }
-        set _INPUT_MODE to _DSKY_STATE:INPUT_MODE.
         IF _INPUT_MODE = "R1" {
             set _DSKY_STATE:INPUT_MODE TO "R2".
             set _DSKYdisplayREG:R2 to "".
@@ -728,7 +725,6 @@ LOCAL FUNCTION DSKY_ENTER {
         IF NOT((_INPUT_MODE = "R1" or _INPUT_MODE = "R2" or _INPUT_MODE = "R3")) {
             set _DSKY_STATE:INPUT_MODE TO "R1".
         }
-        set _INPUT_MODE to _DSKY_STATE:INPUT_MODE.
         IF _INPUT_MODE = "R1" {
             set _DSKY_STATE:INPUT_MODE TO "R2".
             set _DSKYdisplayREG:R2 to "".
@@ -1130,14 +1126,14 @@ LOCAL FUNCTION PUSH_2_MEM {
 
     // variable, format, address
     local _dp is 0.
-    IF _inputFormat:contains(".") {
-        set _dp to (_inputFormat:length-1)-_inputFormat:FIND(".").
+    IF form:contains(".") {
+        set _dp to (form:length-1)-form:FIND(".").
     }
-    set _outputScalar to _inputString:tonumber*10^(-_dp).
+    set _outputScalar to var:tonumber*10^(-_dp).
 
 
-    IF _CORE_MEMORY:haskey(_inputAddress) {
-        set _CORE_MEMORY[_inputAddress] to _outputScalar.
+    IF _CORE_MEMORY:haskey(addr) {
+        set _CORE_MEMORY[addr] to _outputScalar.
     }
 }
 

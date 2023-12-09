@@ -63,6 +63,7 @@ LOCAL FUNCTION R03_FINISH {
         setPartField(_quadC, "Fore/aft", true).
     }
     IF C1 = 0 {
+        // disable B/D for translation
         setPartField(_quadB, "Fore/aft", false).
         setPartField(_quadD, "Fore/aft", false).
     } ELSE IF C1 = 1 {
@@ -82,6 +83,7 @@ LOCAL FUNCTION R03_FINISH {
     setPartField(_quadD, "Roll", A2 = 0).
     setPartField(_quadA, "Roll", A2 = 1).
     setPartField(_quadC, "Roll", A2 = 1).
+    // quad C seems to behave weirdly in tests, i see nothing wrong with the code programitcally speaking, raise an issue if you figure it out :)
 
     // B-E Use or disuse of each of the thruster quads
 
