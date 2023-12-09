@@ -1,28 +1,61 @@
-// apollo DSKY terminal code
+// DSKY version 2 with somewhat improved behaviour and a cleaner codebase, please note this is a development file name so i can easily differenciate between DSKY version 1 and DSKY version 2
+// the code relating to the formation, button pressing and such will be practically the same to the previous DSKY version however the code should be a lot easier to maintain, understand and use
 
-// DSKY gui creation
+// My main reasoning for what i can really only describe as a half-rewrite is to make DSKY_READ_WRITE and the display be allowed to have some better integration with how the actual AGC functioned
+// I realised fairly quickly that implimenting KEYREL as a properly working behaved function would be rather difficult
+
+// DSKY 2 contains code to handle the usage of the informational display 
+
 clearGuis().
 clearscreen.
 // DSKY I/O Information
 
+
+// DSKYdisplayREG contains the information required to DISPLAY what the AGC requires it to on screen, all of these variables relate to visible information
 GLOBAL _DSKYdisplayREG is LEXICON(
+    // Information lights
+
+    "UPLINK", FALSE,
+    "TEMP", FALSE,
+    "NOATT", FALSE,
+    "GIMBAL_LOCK", FALSE,
+    "STBY", FALSE,
+    "PROG", FALSE,
+    "KEYREL", FALSE,
+    "RESTART", FALSE,
+    "OPPERR", FALSE,
+    "TRACKER", FALSE,
+
+    // LM specific (Apollo 11-14), the apollo LM DSKY lights were the same between the LM and the CSM which on that note, the CSM display never changed (https://www.ibiblio.org/apollo/yaDSKY.html#gsc.tab=0)
+    "ALT", FALSE,
+    "VEL", FALSE,
+    // these next two are on later models of DSKY used in apollo 15-17
+    "PRIORDISP", FALSE,
+    "NODAP", FALSE, // I really want to know why they had to know they had no DAP, as it reminds you every 10 minutes about DAP existing
+
+    "COMP_ACTY", FALSE,
     "PROG", "00",
     "VERB", "00",
     "NOUN", "00",
     "R1", "+00000",
     "R2", "+00000",
-    "R3", "+88888",
+    "R3", "+88888"
+).
 
-    // MODE DATA
-    "RFRSH", FALSE,
-    "INPT_MODE", "NO",
-    "PRO", FALSE
-    // V ERB
-    // N OUN
-    // R1
-    // R2
-    // R3
-    // NO NE
+GLOBAL _DSKY_STATE IS LEXICON(
+    "clock", LEXICON("first", 0, "last", 0, "alive", 0, "update", 0, "refresh", 1.5),
+    // first clock cycle (INIT CYCLE), last clock cycle (CURRENT CLOCK CYCLE), time the GC has been active, last time the screens were updated, the refresh rate (in Hz)
+    "INHB", LEXICON("V37", FALSE, "INP", "V00N00"), // V37 program inhibit and the data inhibit
+    // the data inhibit is used to tell the DSKY that if the AGC requests an update to the displays, which data it can request to update without causing a KEYREL ERR
+    "STACK", LIST(), // list of data being requested to be shown by the AGC
+    "stackIndexer", 0,
+    "ERR", LIST(), // all error codes that have been created
+    "PRO", FALSE,
+    "FLASH", LEXICON("V", FALSE, "N", FALSE, "O", FALSE), // O is a variable which gets updated every cycle to control the ON/OFF of the flashing
+    "NEEDS_INPUT", FALSE,
+    "INPUT_INTERRUPT", FALSE,
+    "INPUT_MODE", "NO",
+    "OUTPUT_MODE", TRUE // enable / disable inputs from the agc
 ).
 
 // Data test (REMOVED)
@@ -358,50 +391,13 @@ local _row7spacing is dskyInputR7:addspacing(0.5*_buttonHeight).
     set _inputRSET:style:height to _buttonHeight.
     set _inputRSET:style:width to _buttonWidth.
 
-
-// create interfacing functions
-
-// due to the  fact that both the LM and the CSM will be using this all I/O functionality will be tied in and common to both DSKY displays
-// this means that the following AGC functions are built in to the DSKY program according to the following: https://www.ibiblio.org/apollo/CMC_data_cards_15_Fabrizio_Bernardini.pdf
-
-// Verbs:
-// 00 - Not used
-// 01 - Display Octal component 1 in R1
-// 02 - Display Octal component 2 in R1
-// 03 - Display Octal component 3 in R1
-// 04 - Display octal components 1,2 in R1 and R2
-// 05 - Display octal components 1,2,3 in R1,R2 and R3
-// 06 - Display Decimal in R1 or in R1,R2 or in R1,R2,R3
-// 07 - Not really needed here tbh
-
-// 11 - Monitor Octal component 1 in R1
-// 12 - Monitor Octal component 2 in R1
-// 13 - Monitor Octal component 3 in R1
-// 14 - Monitor octal components 1,2 in R1 and R2
-// 15 - Monitor octal components 1,2,3 in R1,R2 and R3
-// 16 - Monitor Decimals in R1 R2 and R3
-
-// 21 - Load Component 1 into R1 (modify data)
-// 22 - Load Component 2 into R1 (modify data)
-// 23 - Load Component 3 into R1 (modify data)
-
-// however before that can be implimented we must create code for actually displaying and taking inputs
-
-
-// functions regarding buttons can be LOCAL however functions regarding INPUT to the displays must be GLOBAL
-
-// button handler
-
-
-// start with special buttons like VERB, NOUN, ENTER ect ect
-
 LOCAL function DSKY_buttonHandler_VERB {
     // verb buttonpress
     // validation functions come later when i plan to release this first segment
 
-    set _DSKYdisplayREG:INPT_MODE to "V".
+    SET _DSKY_STATE:INPUT_MODE TO "V".
     set _DSKYdisplayREG:VERB to "".
-    print "VERB MODE".
+
 }
 
 set _inputVERB:onclick to DSKY_buttonHandler_VERB@.
@@ -409,106 +405,14 @@ set _inputVERB:onclick to DSKY_buttonHandler_VERB@.
 LOCAL function DSKY_buttonHandler_NOUN {
     // noun buttonpress
 
-    set _DSKYdisplayREG:INPT_MODE to "N".
-    set _DSKYdisplayREG:NOUN to "".
-    print "NOUN MODE".
+    SET _DSKY_STATE:INPUT_MODE to "N".
+    set _DSKYdisplayREG:NOUN TO "".
 }
 
 set _inputNOUN:onclick to DSKY_buttonHandler_NOUN@.
 
 LOCAL FUNCTION DSKY_buttonHandler_ENTER {
-    // certain verbs have special conditions too, such as V37E (V stands for VERB in this case and E for enter) upon pressing ENTER it will automatically allow you to input your NOUN, rather than having to go V37N63E for example you could do V37E63E
-
-    // special verbs 
-
-    // VERB 21 - Modify R1
-
-    local _vrb is _DSKYdisplayREG:VERB.
-    local _noun is _DSKYdisplayREG:NOUN.
-    IF _vrb = "06" {
-        IF _MEMORY_ADDRESSES:haskey(_noun) {
-            // clear all three rows
-            DSKY_clearRegisters().
-            DSKY_READ_WRITE("READ").
-            DKSY_display_REFRESH().
-
-        }
-    } ELSE IF _vrb = "16" {
-
-    } 
-    ELSE IF _vrb = "21" {
-        IF _DSKYdisplayREG:INPT_MODE = "V" {
-            set _DSKYdisplayREG:INPT_MODE to "R1".
-            set _DSKYdisplayREG:R1 to "".
-            set _EL_DISPLAYREG1:text to _DSKYdisplayREG:R1.
-        } ELSE IF _DSKYdisplayREG:INPT_MODE = "R1" {
-            // write to memory
-            DSKY_READ_WRITE("WRITE").
-            // ???
-        }
-        
-    } ELSE IF _vrb = "22" {
-        IF _DSKYdisplayREG:INPT_MODE = "V" {
-            set _DSKYdisplayREG:INPT_MODE to "R2".
-            set _DSKYdisplayREG:R2 to "".
-            set _EL_DISPLAYREG2:text to _DSKYdisplayREG:R2.
-        } ELSE IF _DSKYdisplayREG:INPT_MODE = "R2" {
-            // write to memory
-            DSKY_READ_WRITE("WRITE").
-            // ???
-        }
-    } ELSE IF _vrb = "23" {
-        IF _DSKYdisplayREG:INPT_MODE = "V" {
-            set _DSKYdisplayREG:INPT_MODE to "R3".
-            set _DSKYdisplayREG:R3 to "".
-            set _EL_DISPLAYREG3:text to _DSKYdisplayREG:R3.
-        } ELSE IF _DSKYdisplayREG:INPT_MODE = "R2" {
-            // write to memory
-            DSKY_READ_WRITE("WRITE").
-            // ???
-        }
-    } ELSE IF _vrb = "34" {
-        // prog zero 
-        _AGC_PROGRAMUPDATE("00").
-    } 
-    ELSE IF _vrb = "35" {
-        // lights test
-
-        // clear all of the functions
-
-        set _DSKYdisplayREG:PROG to "".
-        set _DSKYdisplayREG:VERB to "".
-        set _DSKYdisplayREG:NOUN to "".
-        set _DSKYdisplayREG:R1 to "".
-        set _DSKYdisplayREG:R2 to "".
-        set _DSKYdisplayREG:R3 to "".
-
-        DSKY_displayDriver_PROG("88").
-        DSKY_displayDriver_NOUN("88").
-        DSKY_displayDriver_VERB("88").
-        DSKY_displayDriver_R1("+88888").
-        DKSY_displayDriver_R2("+88888").
-        DSKY_displayDriver_R3("+88888").
-    } ELSE IF _vrb = "36" {
-        set _DSKYdisplayREG:PROG to "".
-        set _DSKYdisplayREG:VERB to "".
-        set _DSKYdisplayREG:NOUN to "".
-        set _DSKYdisplayREG:R1 to "".
-        set _DSKYdisplayREG:R2 to "".
-        set _DSKYdisplayREG:R3 to "".
-
-        DKSY_display_REFRESH().
-    } ELSE IF _vrb = "37" {
-        // program change
-
-        _AGC_PROGRAMUPDATE(_DSKYdisplayREG:NOUN).
-
-    } ELSE {
-        _extendedVerbs(_DSKYdisplayREG:VERB).
-    }
-    // the handler for the special VERBS will go here eventually
-
-
+    DSKY_ENTER(). // this could honestly be its own script
 }
 
 set _inputENTR:onclick to DSKY_buttonHandler_ENTER@.
@@ -518,7 +422,7 @@ LOCAL function DSKY_buttonHandler_PRO {
     // PROCEDE in the routine/program
     // ACCEPT requests from the computer (manuvers, engine burns ect)
 
-    set _DSKYdisplayREG:PRO to true.
+    set _DSKY_STATE:PRO TO TRUE.
 
 }
 
@@ -526,35 +430,47 @@ set _inputPRO:onclick to DSKY_buttonHandler_PRO@.
 
 LOCAL FUNCTION DKSY_buttonHandler_KEYREL {
     // key release functionality, will be completed when needed
+    // key release basically "releases" the keyboard to the control of the AGC (i.e allows the AGC to display data for you)
+    IF _DSKYdisplayREG:KEYREL {
+        set _DSKYdisplayREG:KEYREL TO FALSE.
+        // allow for the next combination of verb noun to be read and display
+
+        // set the V/N combo
+        
+        IF _DSKY_STATE:STACK:LENGTH > 0 {
+            local _newcombo is _DSKY_STATE:STACK[_DSKY_STATE:stackIndexer].
+
+            set _DSKY_STATE:INHB:INP to "V00N00".
+            EXT_DSKY_GCDISPLAYREQ(_newcombo).
+            _DSKY_STATE:STACK:REMOVE(0).
+        }
+
+        
+
+    }
 }
 
 set _inputKEYREL:onclick to DKSY_buttonHandler_KEYREL@.
 
 LOCAL FUNCTION DSKY_buttonHandler_CLR {
-    // gather which line we are currently editing and clear it and then refresh the display of that element
-    local _inptMode is _DSKYdisplayREG:INPT_MODE.
-    IF _inptMode = "V" {
+    // clear the current register
+    IF _DSKY_STATE:INPUT_MODE = "V" {
         set _DSKYdisplayREG:VERB to "".
-        set _EL_VERBDISP:text to _DSKYdisplayREG:VERB.
-    } ELSE IF _inptMode = "N" {
-        set _DSKYdisplayREG:NOUN to "".
-        set _EL_NOUNDISP:text to _DSKYdisplayREG:NOUN.
-    } ELSE IF _inptMode = "R1" {
-        set _DSKYdisplayREG:R1 to "".
-        set _EL_DISPLAYREG1:text to _DSKYdisplayREG:R1.
-    } ELSE IF _inptMode = "R2" {
+    } ELSE IF _DSKY_STATE:INPUT_MODE = "N" {
+        set _DSKYdisplayREG:NOUN TO "".
+    } ELSE IF _DSKY_STATE:INPUT_MODE = "R1" {
+        set _DSKYdisplayREG:R1 TO "".
+    } ELSE IF _DSKY_STATE:INPUT_MODE = "R2" {
         set _DSKYdisplayREG:R2 to "".
-        set _EL_DISPLAYREG2:text to _DSKYdisplayREG:R2.
-    } ELSE IF _inptMode = "R3" {
+    } ELSE IF _DSKY_STATE:INPUT_MODE = "R3" {
         set _DSKYdisplayREG:R3 to "".
-        set _EL_DISPLAYREG3:text to _DSKYdisplayREG:R3.
     }
 }
 
 set _inputCLR:onclick to DSKY_buttonHandler_CLR@.
 
 LOCAL FUNCTION DKSY_buttonHandler_RSET {
-
+    DSKY_INPUT_HANDLER("R").
 }
 
 set _inputRSET:onclick to DKSY_buttonHandler_RSET@.
@@ -562,283 +478,360 @@ set _inputRSET:onclick to DKSY_buttonHandler_RSET@.
 // regular old buttons
 
 LOCAL FUNCTION DSKY_buttonHandler_PLUS {
-    DKSY_INPUT_DRIVER("+").
+    DSKY_INPUT_HANDLER("+").
 }
 
 set _inputPLUS:onclick to DSKY_buttonHandler_PLUS@.
 
 LOCAL FUNCTION DSKY_buttonHandler_MINUS {
-    DKSY_INPUT_DRIVER("-").
+    DSKY_INPUT_HANDLER("-").
 }
 set _inputMINUS:onclick to DSKY_buttonHandler_MINUS@.
 
 LOCAL FUNCTION DKSY_buttonHandler_ZERO {
-    DKSY_INPUT_DRIVER("0").
+    DSKY_INPUT_HANDLER("0").
 }
 set _inputZERO:onclick to DKSY_buttonHandler_ZERO@.
 
 LOCAL FUNCTION DKSY_buttonHandler_ONE {
-    DKSY_INPUT_DRIVER("1").
+    DSKY_INPUT_HANDLER("1").
 }
 
 set _inputONE:onclick to DKSY_buttonHandler_ONE@.
 
 LOCAL FUNCTION DKSY_buttonHandler_TWO {
-    DKSY_INPUT_DRIVER("2").
+    DSKY_INPUT_HANDLER("2").
 }
 
 set _inputTWO:onclick to DKSY_buttonHandler_TWO@.
 
 LOCAL FUNCTION DKSY_buttonHandler_THREE {
-    DKSY_INPUT_DRIVER("3").
+    DSKY_INPUT_HANDLER("3").
 }
 
 set _inputTHREE:onclick to DKSY_buttonHandler_THREE@.
 
 LOCAL FUNCTION DKSY_buttonHandler_FOUR {
-    DKSY_INPUT_DRIVER("4").
+    DSKY_INPUT_HANDLER("4").
 }
 
 set _inputFOUR:onclick to DKSY_buttonHandler_FOUR@.
 
 LOCAL FUNCTION DKSY_buttonHandler_FIVE {
-    DKSY_INPUT_DRIVER("5").
+    DSKY_INPUT_HANDLER("5").
 }
 
 set _inputFIVE:onclick to DKSY_buttonHandler_FIVE@.
 
 LOCAL FUNCTION DKSY_buttonHandler_SIX {
-    DKSY_INPUT_DRIVER("6").
+    DSKY_INPUT_HANDLER("6").
 }
 
 set _inputSIX:onclick to DKSY_buttonHandler_SIX@.
 
 LOCAL FUNCTION DKSY_buttonHandler_SEVEN {
-    DKSY_INPUT_DRIVER("7").
+    DSKY_INPUT_HANDLER("7").
 }
 
 set _inputSEVEN:onclick to DKSY_buttonHandler_SEVEN@.
 
 LOCAL FUNCTION DKSY_buttonHandler_EIGHT {
-    DKSY_INPUT_DRIVER("8").
+    DSKY_INPUT_HANDLER("8").
 }
 
 set _inputEIGHT:onclick to DKSY_buttonHandler_EIGHT@.
 
 LOCAL FUNCTION DKSY_buttonHandler_NINE {
-    DKSY_INPUT_DRIVER("9").
+    DSKY_INPUT_HANDLER("9").
 }
 
 set _inputNINE:onclick to DKSY_buttonHandler_NINE@.
 
-// input driver
 
-LOCAL FUNCTION DKSY_INPUT_DRIVER {
-    parameter input is "+".
-    // the INPUT driver manages most of the inputs to the display drivers (basically checks which mode we are in)
+// Handling functions
 
-    IF _DSKYdisplayREG:INPT_MODE = "V" or _DSKYdisplayREG:INPT_MODE = "N" {
-        // check for potential invalid configuration (e.g +/- in the context of V/N operations)
-
-        IF _DSKYdisplayREG:INPT_MODE = "V" {
-            set input to _DSKYdisplayREG:VERB+input.
-            DSKY_displayDriver_VERB(input).
-        } ELSE {
-            set input to _DSKYdisplayREG:NOUN+input.
-            DSKY_displayDriver_NOUN(input).
-        }
-    } ELSE IF _DSKYdisplayREG:INPT_MODE = "R1" or _DSKYdisplayREG:INPT_MODE = "R2" or _DSKYdisplayREG:INPT_MODE = "R3" {
-        IF _DSKYdisplayREG:INPT_MODE = "R1" {
-            DSKY_displayDriver_R1(input).
-        } ELSE IF _DSKYdisplayREG:INPT_MODE = "R2" {
-            DKSY_displayDriver_R2(input).
-        } ELSE IF _DSKYdisplayREG:INPT_MODE = "R3" {
-            DSKY_displayDriver_R3(input).
-        }
-    }
+FUNCTION DSKY_INPUT_HANDLER {
+    parameter input is "".
     print input.
-}
-
-// display drivers
-
-FUNCTION DSKY_displayDriver_PROG {
-    parameter displayValue is "00".
-    // validates and passes on the result to the program display
-    // due to the way inputs are taken, theres no real need to validate if its a numerical value or not, however we will check if its a string
-
-    IF NOT(displayValue:istype("String")) and displayValue:istype("scalar") {
-        IF displayValue < 10 {
-            set displayValue to "0" + displayValue:tostring.
-        } ELSE {
-            set displayValue to displayValue:tostring. 
-        }
+    local _validInput is true. // begin by assuming the input is valid
+    local _inputLocation is "". // the part of the _DSKYdisplayREG we wish to place this new value in
+    local _currentInputValue is "".
+    IF _DSKY_STATE:INPUT_MODE = "V" or _DSKY_STATE:INPUT_MODE = "N" {
         
+        IF _DSKY_STATE:INPUT_MODE = "V" {
+            set _inputLocation to "VERB".
+        } ELSE {
+            set _inputLocation to "NOUN".
+        }
+        set _currentInputValue to _DSKYdisplayREG[_inputLocation].
+        IF (input = "+" or input = "-") or _currentInputValue:length >= 2 {
+            // OPP ERR
+
+            // NOTE: unsure if i should throw an error for simply having the user go over the maximum length of an input
+            set _validInput to false.
+        }
+    } ELSE IF (_DSKY_STATE:INPUT_MODE = "R1" or _DSKY_STATE:INPUT_MODE = "R2") or _DSKY_STATE:INPUT_MODE = "R3" {
+        IF _DSKY_STATE:INPUT_MODE = "R1" {
+            set _inputLocation to "R1".
+        } ELSE IF _DSKY_STATE:INPUT_MODE = "R2" {
+            set _inputLocation to "R2".
+        } ELSE IF _DSKY_STATE:INPUT_MODE = "R3" {
+            set _inputLocation to "R3".
+        }
+        set _currentInputValue to _DSKYdisplayREG[_inputLocation].
+        // MUST: 
+        // start with "+" or "-"
+        // be 5 (plus sign) characters long
+        
+        IF _currentInputValue:startswith("+") or _currentInputValue:startswith("-") {
+            // Double check we arent trying to do something dumb like ++ or -- or any combination of +-
+            IF input = "+" or input = "-" {
+                // OPP ERR
+                set _validInput to false.
+            } 
+            // is it too long?
+            IF _currentInputValue:length >= 5 {
+                // haha no, OPP ERR for you my good friend!
+                set _validInput to false.
+            }
+
+        } ELSE IF NOT(input = "+" or input = "-") {
+            // lol no
+            // OPP ERR
+
+            set _validInput to false.
+        } ELSE {
+            // yeah this is valid... i think
+
+        }
     }
+    print _validInput.
+    print _inputLocation.
+    IF _validInput {
+        // CONGRATULATIONS! THIS IS A VALID INPUT FOR THE DSKY
+        set _DSKYdisplayREG[_inputLocation] to _DSKYdisplayREG[_inputLocation]+input.
+    } ELSE {
+        // OPP ERR!
+    }
+}
+
+LOCAL FUNCTION DSKY_ENTER {
+    // ENTER FUNCTION
+    // DSKY will read the values inputted and then decide what to do with them
+
+    local _VERB is _DSKYdisplayREG:VERB.
+    local _NOUN is _DSKYdisplayREG:NOUN.
+    local _R1 is _DSKYdisplayREG:R1.
+    local _R2 is _DSKYdisplayREG:R2.
+    local _R3 is _DSKYdisplayREG:R3.
+    local _INPUT_MODE IS _DSKY_STATE:INPUT_MODE.
+    local _canResetInputMode is true.
+
+    // First check the verb
     
-    IF displayValue:length = 2 { // TODO: validate against a PROGRAM LIST file
-        set _DSKYdisplayREG:PROG to displayValue.
+    // Display Verbs
+    IF _VERB = "01" {
+        DSKY_READ_WRITE("READ").
+        // Display Octal Component in R1
+    } ELSE IF _VERB = "02" {
+        DSKY_READ_WRITE("READ").
+        // Display Octal Component 2 in R1
+    } ELSE IF _VERB = "03" {
+        DSKY_READ_WRITE("READ").
+        // display octal component 3 in r1
+    } ELSE IF _VERB = "04" {
+        DSKY_READ_WRITE("READ").
+        // display octal component 1,2 in R1,R2
+    } ELSE IF _VERB = "05" {
+        DSKY_READ_WRITE("READ").
+        // display octal component 1,2,3 in R1,R2,R3
+    } ELSE IF _VERB = "06" {
+        // display decimal 1,2,3 in R1,R2,R3
+        DSKY_READ_WRITE("READ").
+    } ELSE IF _VERB = 07 {
+        // I dont think this is used actually
+    }
+    // 08-10 are not used
+
+    ELSE IF _VERB = "11" {
+        // Monitor Octal component 1 in R1
+    } ELSE IF _VERB = "12" {
+        // Monitor Octal component 2 in R1
+    } ELSE IF _VERB = "13" {
+        // Monitor Octal component 3 in R1
+    } ELSE IF _VERB = "14" {
+        // Monitor Octal components 1,2 in R1,R2
+    } ELSE IF _VERB = "15" {
+        // Monitor Octal components 1,2,3 in R1,R2,R3
+    } ELSE IF _VERB = "16" {
+        // Monitor Decimal components 1,2,3 in R1,R2,R3
+    } ELSE IF _VERB = "17" {
+        // Not used i think
     }
 
-    // update the PROG display, this can use RAW display input due to the fact that in normal operations this is used internally by the AGC
+    // 18-20 are not used either
 
-    set _EL_PROGDISP:text to _DSKYdisplayREG:PROG.
-}
+    ELSE IF _VERB = "21" {
+        // load component 1 into r1
+        // which input mode are we currently in? 
 
-FUNCTION DSKY_displayDriver_VERB {
-    parameter displayValue is "00".
-
-    // displays the result onto the verb/noun display unit
-
-    IF displayValue:istype("Scalar") {
-        set displayValue to displayValue:tostring.
+        IF NOT(_INPUT_MODE = "R1") {
+            // we are currently not modifying this register, therefore we should clear it and then change the mode
+            set _DSKYdisplayREG:R1 to "".
+            set _DSKY_STATE:INPUT_MODE TO "R1".
+        } ELSE {
+            // already entering into R1, therefore we can call the READ WRITE FUNCTION
+            DSKY_READ_WRITE("WRITE").
+            // probably good practice to change the input lock to nothing afterwards
+        }
+    } ELSE IF _VERB = "22" {
+        set _canResetInputMode to false.
+        // load component 2 into R2
+        // again, which mode are we in?
+        IF NOT(_INPUT_MODE = "R2") {
+            set _DSKYdisplayREG:R2 TO "".
+            set _DSKY_STATE:INPUT_MODE TO "R2".
+        } ELSE {
+            DSKY_READ_WRITE("WRITE").
+        }
+    } ELSE IF _VERB = "23" {
+        set _canResetInputMode to false.
+        IF NOT(_INPUT_MODE = "R3") {
+            set _DSKYdisplayREG:R3 to "".
+            set _DSKY_STATE:INPUT_MODE TO "R3".
+        } ELSE {
+            DSKY_READ_WRITE("WRITE").
+        }
+    } ELSE IF _VERB = "24" {
+        set _canResetInputMode to false.
+        // special handling here!
+        IF NOT(_INPUT_MODE = "R1" or _INPUT_MODE = "R2") {
+            set _DSKY_STATE:INPUT_MODE TO "R1".
+            set _DSKYdisplayREG:R1 to "".
+        }
+        set _INPUT_MODE to _DSKY_STATE:INPUT_MODE.
+        IF _INPUT_MODE = "R1" {
+            set _DSKY_STATE:INPUT_MODE TO "R2".
+            set _DSKYdisplayREG:R2 to "".
+        } ELSE IF _INPUT_MODE = "R2" {
+            // can read and write all variables#
+            DSKY_READ_WRITE("WRITE").
+        }
+    } ELSE IF _VERB = "25" {
+        set _canResetInputMode to false.
+        // more special handling!
+        IF NOT((_INPUT_MODE = "R1" or _INPUT_MODE = "R2" or _INPUT_MODE = "R3")) {
+            set _DSKY_STATE:INPUT_MODE TO "R1".
+        }
+        set _INPUT_MODE to _DSKY_STATE:INPUT_MODE.
+        IF _INPUT_MODE = "R1" {
+            set _DSKY_STATE:INPUT_MODE TO "R2".
+            set _DSKYdisplayREG:R2 to "".
+        } ELSE IF _INPUT_MODE = "R2" {
+            set _DSKY_STATE:INPUT_MODE TO "R3".
+            set _DSKYdisplayREG:R3 to "".
+        } ELSE IF _INPUT_MODE = "R3" {
+            DSKY_READ_WRITE("WRITE").
+        }
     }
+    // 26 not used 
+    ELSE IF _VERB = "27" {
 
-    IF displayValue:length > 2 {
-        // throw an error here
+        // unsure
+    }
+    //28 Not used
+    //29 Not used
+    ELSE IF _VERB = "30" {
+        // request executive something
+    } ELSE IF _VERB = "31" {
+        // request waitlist
+    } ELSE IF _VERB = "32" {
+        // recycle program
+    } ELSE IF _VERB = "33" {
+        // Proceede without inputs of dsky
+    } ELSE IF _VERB = "34" {
+        // TERMINATE PROGRAM/FUNCTION
+    } ELSE IF _VERB = "35" {
+        // light test
+        DSKY_LIGHTTEST().
+    } ELSE IF _VERB = "36" {
+        // fresh start whatever that means
+    } ELSE IF _VERB = "37" AND NOT(_DSKY_STATE:INHB:V37) {
+        // program change
+        _AGC_PROGRAMUPDATE(_NOUN).
     } ELSE {
-        set _DSKYdisplayREG:VERB to displayValue. // when hitting enter, this value must be a valid 2 length value, we allow inputs of lengths of 1 so you can display a value while typing it in
-        // display the new value
-
-        set _EL_VERBDISP:text to _DSKYdisplayREG:VERB.
+        _extendedVerbs(_VERB).
     }
+    IF _canResetInputMode { set _DSKY_STATE:INPUT_MODE to "NO". }
 }
 
-FUNCTION DSKY_displayDriver_NOUN {
-    parameter displayValue is "00".
-
-    // displays the result onto the verb/noun display unit
-
-    IF displayValue:istype("Scalar") {
-        set displayValue to displayValue:tostring.
-    }
-
-    IF displayValue:length > 2 {
-        // throw an error here
-    } ELSE {
-        set _DSKYdisplayREG:NOUN to displayValue. // when hitting enter, this value must be a valid 2 length value, we allow inputs of lengths of 1 so you can display a value while typing it in
-
-        // display the new value
-
-        set _EL_NOUNDISP:text to _DSKYdisplayREG:NOUN.
-    }
+FUNCTION DSKY_UPDATE_CYCLE {
+    // alias for below
+    DSKY_REFRESH_CYCLE().
 }
 
-FUNCTION DSKY_displayDriver_R1 {
-    parameter displayValue is 0, computerData is true.
-    // display inputs usually begin with + or - in the agc register
-    IF displayValue:istype("Scalar") {
-        set displayValue to displayValue:tostring.
+FUNCTION DSKY_REFRESH_CYCLE {
+    // refresh cycle for the display
+
+    IF _DSKY_STATE:clock:first = 0 {
+        // perform first update
+        set _DSKY_STATE:clock:first to time:seconds.
+        // convert the refresh rate into seconds so we dont use as many opcodes
+        set _DSKY_STATE:clock:refresh to 1-(1/_DSKY_STATE:clock:refresh).
     }
-    local _currentData is _DSKYdisplayREG:R1.
+    // perform the rest of the updates
+    set _DSKY_STATE:clock:last to time:seconds.
+    set _DSKY_STATE:clock:alive to abs(_DSKY_STATE:clock:first-_DSKY_STATE:clock:last).
     
-    IF displayValue = "+" or displayValue = "-" {
-        IF _currentData:startswith("+") or _currentData:startswith("-") {
-            // throw an error
-        } ELSE {
-            set _DSKYdisplayREG:R1 to _DSKYdisplayREG:R1+displayValue.
-            set _EL_DISPLAYREG1:text to _DSKYdisplayREG:R1.
-            // refresh the display
-        }
-    } ELSE {
-        IF NOT(_currentData:startswith("+") or _currentData:startswith("-")) and NOT(displayValue:startswith("+") or displayValue:startswith("-")) {
-            // throw an error
-        } ELSE {
-            set _DSKYdisplayREG:R1 to _DSKYdisplayREG:R1+displayValue.
-            set _EL_DISPLAYREG1:text to _DSKYdisplayREG:R1.
-        }
-    }
-}
+    // check to see if the time since we last updated the displays _DSKY_STATE:clock:update is greater than the refresh timer
+    IF abs(_DSKY_STATE:clock:last-_DSKY_STATE:clock:update) > _DSKY_STATE:clock:refresh {
+        // refresh the displays
+        set _DSKY_STATE:FLASH:O to NOT(_DSKY_STATE:FLASH:O). // master flash value - basically controlls all of the flashing functionality of the displays
+        // check to see if we are flashing either verb or noun
+        print _DSKY_STATE:FLASH:O.
 
-FUNCTION DKSY_displayDriver_R2 {
-    parameter displayValue is 0, computerData is true.
-    // display inputs usually begin with + or - in the agc register
-    IF displayValue:istype("Scalar") {
-        set displayValue to displayValue:tostring.
-    }
-    local _currentData is _DSKYdisplayREG:R2.
-    
-    IF displayValue = "+" or displayValue = "-" {
-        IF _currentData:startswith("+") or _currentData:startswith("-") {
-            // throw an error
-        } ELSE {
-            set _DSKYdisplayREG:R2 to _DSKYdisplayREG:R2+displayValue.
-            set _EL_DISPLAYREG2:text to _DSKYdisplayREG:R2.
-            // refresh the display
-        }
-    } ELSE {
-        IF NOT(_currentData:startswith("+") or _currentData:startswith("-")) and NOT(displayValue:startswith("+") or displayValue:startswith("-")) {
-            // throw an error
-        } ELSE {
-            set _DSKYdisplayREG:R2 to _DSKYdisplayREG:R2+displayValue.
-            set _EL_DISPLAYREG2:text to _DSKYdisplayREG:R2.
-        }
-    }
-}
+        IF _DSKY_STATE:FLASH:O {
+            IF (_DSKY_STATE:FLASH:V or _DSKY_STATE:FLASH:N) {
+                IF _DSKY_STATE:FLASH:V {
+                    set _EL_VERBDISP:text to "".
+                } ELSE { set _EL_VERBDISP:text to _DSKYdisplayREG:VERB. }
+                IF _DSKY_STATE:FLASH:N {
+                    set _EL_NOUNDISP:text to "".
+                } ELSE { set _EL_NOUNDISP:text to _DSKYdisplayREG:NOUN. }
+            }
+            IF _DSKYdisplayREG:KEYREL { set _CW_KEYREL:text to "KEY REL". }
+            IF _DSKYdisplayREG:OPPERR { set _CW_OPPERR:text to "OPP ERR". }
 
-FUNCTION DSKY_displayDriver_R3 {
-    parameter displayValue is 0, computerData is true.
-    // display inputs usually begin with + or - in the agc register
-    IF displayValue:istype("Scalar") {
-        set displayValue to displayValue:tostring.
-    }
-    local _currentData is _DSKYdisplayREG:R3.
-    
-    IF displayValue = "+" or displayValue = "-" {
-        IF _currentData:startswith("+") or _currentData:startswith("-") {
-            // throw an error
         } ELSE {
-            set _DSKYdisplayREG:R3 to _DSKYdisplayREG:R3+displayValue.
-            set _EL_DISPLAYREG3:text to _DSKYdisplayREG:R3.
-            // refresh the display
-        }
-    } ELSE {
-        IF NOT(_currentData:startswith("+") or _currentData:startswith("-")) and NOT(displayValue:startswith("+") or displayValue:startswith("-")) {
-            // throw an error
-        } ELSE {
-            set _DSKYdisplayREG:R3 to _DSKYdisplayREG:R3+displayValue.
-            set _EL_DISPLAYREG3:text to _DSKYdisplayREG:R3.
-        }
-    }
-}
+            set _EL_NOUNDISP:text to _DSKYdisplayREG:NOUN.
+            set _EL_VERBDISP:text to _DSKYdisplayREG:VERB.
+            // unflash the warnings that should normally flash if active
 
-LOCAL FUNCTION DSKY_clearRegisters {
-    set _DSKYdisplayREG:R1 to "".
-    set _DSKYdisplayREG:R2 to "".
-    set _DSKYdisplayREG:R3 to "".
-    set _EL_DISPLAYREG1:text to _DSKYdisplayREG:R1.
-    set _EL_DISPLAYREG2:text to _DSKYdisplayREG:R2.
-    set _EL_DISPLAYREG3:text to _DSKYdisplayREG:R3.
-}
+            set _CW_KEYREL:text to "".
+            set _CW_OPPERR:text to "".
 
-FUNCTION DKSY_display_REFRESH {
-    IF NOT(_EL_PROGDISP:text = _DSKYdisplayREG:PROG) {
+
+
+        }
+
+        
+        // refresh the three registers
         set _EL_PROGDISP:text to _DSKYdisplayREG:PROG.
-    }
-    IF NOT(_EL_NOUNDISP:text = _DSKYdisplayREG:NOUN) {
-        set _EL_NOUNDISP:text to _DSKYdisplayREG:NOUN.
-    }
-    IF NOT(_EL_VERBDISP:text = _DSKYdisplayREG:VERB) {
-        set _EL_VERBDISP:text to _DSKYdisplayREG:VERB.
-    }
-    IF NOT(_EL_DISPLAYREG1:text = _DSKYdisplayREG:R1) {
         set _EL_DISPLAYREG1:text to _DSKYdisplayREG:R1.
-    }
-    IF NOT(_EL_DISPLAYREG2:text = _DSKYdisplayREG:R2) {
         set _EL_DISPLAYREG2:text to _DSKYdisplayREG:R2.
-    }
-    IF NOT(_EL_DISPLAYREG3:text = _DSKYdisplayREG:R3) {
         set _EL_DISPLAYREG3:text to _DSKYdisplayREG:R3.
+        set _DSKY_STATE:clock:update to time:seconds.
     }
+
 }
 
-
-// AGC/LGC RW code
 
 LOCAL FUNCTION DSKY_READ_ADDRESS_TABLE {
+    parameter vrb is _DSKYdisplayREG:VERB, _non is _DSKYdisplayREG:NOUN.
     // reads the address table for the current sets of V/N and returns a DSKY compatable table
 
-    local _v is _DSKYdisplayREG:VERB.
-    local _n is _DSKYdisplayREG:NOUN.
+    local _v is vrb.
+    local _n is _non.
 
     local _return is LEXICON("R1", LEXICON("A", "ND", "F", "ND"), "R2", LEXICON("A", "ND", "F", "ND"), "R3", LEXICON("A", "ND", "F", "ND")). // ND - None Defined
 
@@ -869,16 +862,16 @@ LOCAL FUNCTION DSKY_READ_ADDRESS_TABLE {
 }
 
 LOCAL FUNCTION DSKY_READ_WRITE {
-    parameter md is "READ". // for read and write functions
+    parameter md is "READ", vrb is _DSKYdisplayREG:VERB, non is _DSKYdisplayREG:NOUN. // for read and write functions
 
-    local _addressingInfo is DSKY_READ_ADDRESS_TABLE().
+    local _addressingInfo is DSKY_READ_ADDRESS_TABLE(vrb, non).
 
     // 1. Do read first because its slightly (by slightly i mean a lot) more complex
 
     IF md = "READ" {
-        local _r1disp is "".
-        local _r2disp is "".
-        local _r3disp is "".
+        local _comp1Disp is "".
+        local _comp2Disp is "".
+        local _comp3Disp is "".
         local _values is 0.
         FOR i in _addressingInfo:keys {
             set _values to _addressingInfo[i].
@@ -932,7 +925,7 @@ LOCAL FUNCTION DSKY_READ_WRITE {
                         set _actualDecimalPlaces to (vString:length-1)-vString:FIND(".").
                         set vString to _tempString:remove(vString:find("."), 1).
                     }
-                    local _missingDecimalPlaces is _requiredDecimalPlaces-_actualDecimalPlaces.
+                    local _missingDecimalPlaces is (_requiredDecimalPlaces-_actualDecimalPlaces)-1.
                     IF _missingDecimalPlaces = 1 {
                         set vString to vString+"0".
                     } ELSE IF _missingDecimalPlaces = 2 {
@@ -969,6 +962,7 @@ LOCAL FUNCTION DSKY_READ_WRITE {
                     local _tString2 is vString:remove(0,1).
                     set vString to _tString2.
                     local _tString3 is vString:insert(_workingFormat:find("b"), "0").
+                    set vString to _tString3.
                 }
 
 
@@ -978,18 +972,91 @@ LOCAL FUNCTION DSKY_READ_WRITE {
                     set vString to "+" + vstring.
                 }
                 IF i = "R1" {
-                    DSKY_displayDriver_R1(vString).
+                    set _comp1Disp to vString.
                 } ELSE IF i = "R2" {
-                    DKSY_displayDriver_R2(vString).
+                    set _comp2Disp to vString.
                 } ELSE IF i = "R3" {
-                    DSKY_displayDriver_R3(vString).
+                    set _comp3Disp to vString.
                 }
+
+                // logic for where we put what based upon what the verb is
+
+
 
             } ELSE {
                 // no it doesnt!
             }
 
         }
+        local _VERB is vrb.
+        IF _VERB = "01" {
+            set _DSKYdisplayREG:R1 to _comp1Disp.
+            set _DSKYdisplayREG:R2 to "".
+            set _DSKYdisplayREG:R3 to "".
+            // Display Octal Component 1 in R1
+        } ELSE IF _VERB = "02" {
+            set _DSKYdisplayREG:R1 to _comp2Disp.
+            set _DSKYdisplayREG:R2 to "".
+            set _DSKYdisplayREG:R3 to "".
+            // Display Octal Component 2 in R1
+        } ELSE IF _VERB = "03" {
+            set _DSKYdisplayREG:R1 to _comp3Disp.
+            set _DSKYdisplayREG:R2 to "".
+            set _DSKYdisplayREG:R3 to "".
+            // display octal component 3 in r1
+        } ELSE IF _VERB = "04" {
+            set _DSKYdisplayREG:R1 to _comp1Disp.
+            set _DSKYdisplayREG:R2 to _comp2Disp.
+            set _DSKYdisplayREG:R3 to "".
+            // display octal component 1,2 in R1,R2
+        } ELSE IF _VERB = "05" {
+            set _DSKYdisplayREG:R1 to _comp1Disp.
+            set _DSKYdisplayREG:R2 to _comp2Disp.
+            set _DSKYdisplayREG:R3 to _comp3Disp.
+            // display octal component 1,2,3 in R1,R2,R3
+        } ELSE IF _VERB = "06" {
+            // display decimal 1,2,3 in R1,R2,R3
+            set _DSKYdisplayREG:R1 to _comp1Disp.
+            set _DSKYdisplayREG:R2 to _comp2Disp.
+            set _DSKYdisplayREG:R3 to _comp3Disp.
+        } ELSE IF _VERB = 07 {
+            // I dont think this is used actually
+        }
+        // 08-10 are not used
+
+        ELSE IF _VERB = "11" {
+            // Monitor Octal component 1 in R1
+            set _DSKYdisplayREG:R1 to _comp1Disp.
+            set _DSKYdisplayREG:R2 to "".
+            set _DSKYdisplayREG:R3 to "".
+        } ELSE IF _VERB = "12" {
+            // Monitor Octal component 2 in R1
+            set _DSKYdisplayREG:R1 to _comp2Disp.
+            set _DSKYdisplayREG:R2 to "".
+            set _DSKYdisplayREG:R3 to "".
+        } ELSE IF _VERB = "13" {
+            // Monitor Octal component 3 in R1
+            set _DSKYdisplayREG:R1 to _comp3Disp.
+            set _DSKYdisplayREG:R2 to "".
+            set _DSKYdisplayREG:R3 to "".
+        } ELSE IF _VERB = "14" {
+            // Monitor Octal components 1,2 in R1,R2
+            set _DSKYdisplayREG:R1 to _comp1Disp.
+            set _DSKYdisplayREG:R2 to _comp2Disp.
+            set _DSKYdisplayREG:R3 to "".
+        } ELSE IF _VERB = "15" {
+            // Monitor Octal components 1,2,3 in R1,R2,R3
+            set _DSKYdisplayREG:R1 to _comp1Disp.
+            set _DSKYdisplayREG:R2 to _comp2Disp.
+            set _DSKYdisplayREG:R3 to _comp3Disp.
+        } ELSE IF _VERB = "16" {
+            set _DSKYdisplayREG:R1 to _comp1Disp.
+            set _DSKYdisplayREG:R2 to _comp2Disp.
+            set _DSKYdisplayREG:R3 to _comp3Disp.
+        } ELSE IF _VERB = "17" {
+            // Not used i think
+        }
+
     } ELSE IF md = "WRITE" {
         local _vrb is _DSKYdisplayREG:VERB.
         local _non is _DSKYdisplayREG:NOUN.
@@ -997,129 +1064,130 @@ LOCAL FUNCTION DSKY_READ_WRITE {
         local _inputAddress is "".
         local _inputFormat is "".
         local _inputString is "".
-        
         IF _vrb = "21" {
             set _inputFormat to _addressingInfo:R1:F.
             set _inputAddress to _addressingInfo:R1:A.
 
             set _inputString to _DSKYdisplayREG:R1.
-
+            PUSH_2_MEM(_inputString, _inputFormat, _inputAddress).
         } ELSE IF _vrb = "22" {
             set _inputFormat to _addressingInfo:R2:F.
             set _inputAddress to _addressingInfo:R2:A.
 
             set _inputString to _DSKYdisplayREG:R2.
+            PUSH_2_MEM(_inputString, _inputFormat, _inputAddress).
         } ELSE IF _vrb = "23" {
             set _inputFormat to _addressingInfo:R3:F.
             set _inputAddress to _addressingInfo:R3:A.
 
             set _inputString to _DSKYdisplayREG:R3.
+            PUSH_2_MEM(_inputString, _inputFormat, _inputAddress).
+        } ELSE IF _vrb = "24" {
+            // here we dont really care if the 
+            local _inputR1 is _DSKYdisplayREG:R1.
+            local _formatR1 is _addressingInfo:R1:F.
+            local _addressR1 is _addressingInfo:R1:A.
+
+            local _inputR2 is _DSKYdisplayREG:R2.
+            local _formatR2 is _addressingInfo:R2:F.
+            local _addressR2 is _addressingInfo:R2:A.
+            PUSH_2_MEM(_inputR1, _formatR1, _addressR1).
+            PUSH_2_MEM(_inputR2, _formatR2, _addressR2).
+        } ELSE IF _vrb = "25" {
+            local _inputR1 is _DSKYdisplayREG:R1.
+            local _formatR1 is _addressingInfo:R1:F.
+            local _addressR1 is _addressingInfo:R1:A.
+
+            local _inputR2 is _DSKYdisplayREG:R2.
+            local _formatR2 is _addressingInfo:R2:F.
+            local _addressR2 is _addressingInfo:R2:A.
+
+            local _inputR3 is _DSKYdisplayREG:R3.
+            local _formatR3 is _addressingInfo:R3:F.
+            local _addressR3 is _addressingInfo:R3:A.
+            PUSH_2_MEM(_inputR1, _formatR1, _addressR1).
+            PUSH_2_MEM(_inputR2, _formatR2, _addressR2).
+            PUSH_2_MEM(_inputR3, _formatR3, _addressR3).
         }
-        local _dp is 0.
-        IF _inputFormat:contains(".") {
-            set _dp to (_inputFormat:length-1)-_inputFormat:FIND(".").
-        }
-        set _outputScalar to _inputString:tonumber*10^(-_dp).
+        set _DSKY_STATE:INPUT_MODE to "NONE".
+    }
+}
+
+LOCAL FUNCTION PUSH_2_MEM {
+    parameter var is "", form is "", addr is "".
+
+    // variable, format, address
+    local _dp is 0.
+    IF _inputFormat:contains(".") {
+        set _dp to (_inputFormat:length-1)-_inputFormat:FIND(".").
+    }
+    set _outputScalar to _inputString:tonumber*10^(-_dp).
 
 
-        IF _CORE_MEMORY:haskey(_inputAddress) {
-            set _CORE_MEMORY[_inputAddress] to _outputScalar.
-        }
+    IF _CORE_MEMORY:haskey(_inputAddress) {
+        set _CORE_MEMORY[_inputAddress] to _outputScalar.
+    }
+}
+
+LOCAL FUNCTION DSKY_LIGHTTEST {
+
+}
+
+LOCAL FUNCTION _INTERPRET {
+    // interprets a code such as V00N00 ect ect
+    parameter _codeToInterpret is "V00N00".
+
+    local _rVERB is "00".
+    local _rNOUN is "00".
+
+    IF _codeToInterpret:contains("V") {
+        local _vIndx is _codeToInterpret:FIND("V")+1.
+        set _rVERB to _codeToInterpret[_vIndx].
+        set _rVERB to _rVERB+_codeToInterpret[_vIndx+1].
+    }
+    IF _codeToInterpret:contains("N") {
+        local _vIndx is _codeToInterpret:FIND("N")+1.
+        set _rNOUN to _codeToInterpret[_vIndx].
+        set _rNOUN to _rNOUN+_codeToInterpret[_vIndx+1].
     }
 
-    
+    return lexicon("VERB", _rVERB, "NOUN", _rNOUN).
 }
 
-// DSKY INTERACTION FOR EXTERNAL
 
-FUNCTION EXT_DSKY_VERB {
-    parameter newVerb is "00".
+// EXTERNAL DSKY INTERFACING FUNCTIONS
 
-    DSKY_displayDriver_VERB(newVerb).
-}
+FUNCTION EXT_DSKY_GCDISPLAYREQ {
+    parameter disp_req is "".
+    local _orig is disp_req.
+    // allows the AGC to display data on the DSKY upon request
+    set disp_req to _INTERPRET(disp_req).
 
-FUNCTION EXT_DSKY_NOUN {
-    parameter newNoun is "00".
+    // check to see if the VN set provided is an important display item (i.e V99 ect ect)
+    // so we check for priority verbs first
 
-    DSKY_displayDriver_NOUN(newNoun).
+    // check to see which combination we are displaying currently, if these two match or if we are currently keyed to V00N00 we will allow the data to be displayed, otherwise we will activate the KEYREL button
+    IF NOT(_DSKY_STATE:INHB:INP = _orig or _DSKY_STATE:INHB:INP = "V00N00") and NOT(_DSKY_STATE:STACK:CONTAINS(_orig)) {
+        _DSKY_STATE:STACK:ADD(_orig).
+        print "+".
+        set _DSKYdisplayREG:KEYREL to true.
+    } ELSE {
+        // display the combination by just setting the registers (they will update in the next cycle so its okay)
+        // actually dont do this because uh, it may cause problems when this updates every cycle
+        // maybe uh something like this
+        IF _DSKY_STATE:INPUT_MODE = "NO" {
+            // we can display the VN combo
+            set _DSKYdisplayREG:VERB to disp_req:VERB.
+            set _DSKYdisplayREG:NOUN to disp_req:NOUN.
+        }
+        set _DSKY_STATE:INHB:INP to _orig.
+        DSKY_READ_WRITE("READ", disp_req:VERB, disp_req:NOUN).
+    }
 }
 
 FUNCTION EXT_DSKY_PROG {
-    parameter newProgram is "00".
-
-    DSKY_displayDriver_PROG(newProgram).
-}
-
-FUNCTION EXT_DSKY_ENTR {
-    DSKY_buttonHandler_ENTER().
-}
-
-FUNCTION EXT_DSKY_REGISTERS {
-    parameter newData is "+00000",newRegister is "R1", newFormat is "XXXXX".
-
-    local _workingValue is newData.
-    local _workingFormat is newFormat.
-    local _dp is 0.
-    local _finalZero is false.
-    local _neg is false.
-
-    IF _workingValue:istype("String") {
-        set _workingValue to _workingValue:tonumber.
-    }
-
-    IF NOT(_workingValue >= 0) {
-        set _neg to true.
-        set _workingValue to abs(_workingValue).
-    }
-
-    local vString is _workingValue:tostring.
-    // get the initial string, we can do formatting on this actually
-
-    local vLength is vString:length-1.
-    IF _workingFormat:contains(".") {
-        // decimal point
-        // now we figure out what decimal point we must allow for the value to be placed into
-        IF _workingFormat:contains(".") {
-            set _dp to (_workingFormat:length-1)-_workingFormat:FIND(".").
-        }
-        set _workingValue to _workingValue*10^_dp.
-        set _workingValue to ROUND(_workingValue).
-    }
-    set vString to _workingValue:tostring.
-
-
-    // ensure it conforms to the 5 digit limit
-
-    IF vString:length < 5 {
-        IF vString:length = 4 {
-            set vString to "0"+vString.
-        } ELSE IF vString:length = 3 {
-            set vString to "00"+vString.
-        } ELSE IF vString:length = 2 {
-            set vString to "000" + vString.
-        } ELSE IF vString:length = 1 {
-            set vString to "0000" + vString.
-        } ELSE {
-            set vString to "00000".
-        }
-    }
-
-    IF _neg {
-        set vString to "-"+vString.
-    } ELSE {
-        set vString to "+" + vstring.
-    }
-    // clear the register in particular first
-    IF newRegister = "R1" {
-        set _DSKYdisplayREG:R1 to "".
-        DSKY_displayDriver_R1(vString).
-    } ELSE IF newRegister = "R2" {
-        set _DSKYdisplayREG:R2 to "".
-        DKSY_displayDriver_R2(vString).
-    } ELSE IF newRegister = "R3" {
-        set _DSKYdisplayREG:R3 to "".
-        DSKY_displayDriver_R3(vString).
-    }
+    parameter newProgram is "00". // for when a new program runs
+    set _DSKYdisplayREG:PROG to newProgram.
 }
 
 DSKY:show.

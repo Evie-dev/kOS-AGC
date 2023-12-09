@@ -1,7 +1,7 @@
 // Program 11 - Boost insertion monitor
 
 // All programs will have the following function:
-
+local _doneOnce is false.
 FUNCTION P11_INIT {
     // this will be global for functions and routines, allowing for a more streamlined useage
 
@@ -12,10 +12,10 @@ FUNCTION P11_INIT {
     
     print "program 11 started!".
 
-    EXT_DSKY_PROG("11").
+    // program 11 running
 
-    EXT_DSKY_VERB("06").
-    EXT_DSKY_NOUN("62").
+    EXT_DSKY_PROG("11").
+    EXT_DSKY_GCDISPLAYREQ("V06N62").
 }
 
 
@@ -28,10 +28,24 @@ LOCAL FUNCTION P11_VARUPDT {
     set _CORE_MEMORY:HDOT to FLOOR(verticalSpeed*3.28084). // IN FPS, zero decimal
     set _CORE_MEMORY["ALT 1"] to FLOOR(altitude*0.00054,1). // in NMI
 
+    // update the orbit parameters
+    set _CORE_MEMORY:HAPOX to FLOOR(apoapsis*0.00054,1).
+    set _CORE_MEMORY:HPERX to FLOOR(periapsis*0.00054,1).
+    set _CORE_MEMORY:TFF_M to FLOOR(TIMESPAN(ship:orbit:period):MINUTES).
+    set _CORE_MEMORY:TFF_S to FLOOR(ship:orbit:period-FLOOR(60*_CORE_MEMORY:TFF_M)).
+    local _m is _CORE_MEMORY:TFF_M:tostring.
+    local _s is _CORE_MEMORY:TFF_S:tostring.
+    set _CORE_MEMORY:TFF to _m + "0" + _s.
+    
+
 }
 
 LOCAL FUNCTION P11_DISPUPDT {
-    EXT_DSKY_REGISTERS(_CORE_MEMORY:VMAGI, "R1", "XXXXX").
-    EXT_DSKY_REGISTERS(_CORE_MEMORY:HDOT, "R2", "XXXXX").
-    EXT_DSKY_REGISTERS(_CORE_MEMORY["ALT 1"], "R3", "XXXX.X").
+    
+    IF periapsis > 70000 and throttle = 0 and NOT(_doneOnce) {
+        // begin flashing
+        EXT_DSKY_GCDISPLAYREQ("V16N44").
+        ADD_STEP("P00").
+        set _doneOnce to true.
+    } ELSE IF NOT(periapsis > 70000 and throttle = 0) { EXT_DSKY_GCDISPLAYREQ("V06N62"). }
 }

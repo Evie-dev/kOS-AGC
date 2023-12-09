@@ -7,6 +7,14 @@ FUNCTION P00_INIT {
     set _UPDLOOP_POINTER_DISP to P00_DISPUPD@.
 
     EXT_DSKY_PROG("00").
+
+    // clear all the displays DIRECTLY
+    set _DSKYdisplayREG:VERB TO "".
+    set _DSKYdisplayREG:NOUN TO "".
+    set _DSKYdisplayREG:R1 to "".
+    set _DSKYdisplayREG:R2 TO "".
+    SET _DSKYdisplayREG:R3 TO "".
+    set _DSKY_STATE:INHB:INP to "V00N00".
 }
 
 LOCAL FUNCTION P00_VARUPD {

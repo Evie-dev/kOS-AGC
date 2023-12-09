@@ -11,11 +11,10 @@ FUNCTION R30_INIT {
     local _s is _CORE_MEMORY:TFF_S:tostring.
     print _m.
     print _s.
-    set _CORE_MEMORY:TFF to _m + _s.
-
+    set _CORE_MEMORY:TFF to _m + "0" + _s.
+    // set the pro flag to true
+    set _DSKY_STATE:PRO to true.
     ADD_STEP("V06N44").
-    ADD_STEP("V36").
-    ADD_STEP("TERM").
 }
 
 LOCAL FUNCTION R30_FINISH {

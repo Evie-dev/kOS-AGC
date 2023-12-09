@@ -41,5 +41,7 @@ FUNCTION _AGC_ROUTINEUPDATE {
 
     IF calledRoutine = "03" {
         R03_INIT().
+    } ELSE IF calledRoutine = "30" {
+        R30_INIT().
     }
 }
