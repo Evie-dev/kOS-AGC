@@ -477,9 +477,9 @@ FUNCTION getOrbVel {
         set r3 to getAltitude(r1,r2,r3).
     }
     local a is getSMA(r1, r2).
-    local r is addRadius(r3).
+    set r3 to addRadius(r3).
 
-    local vSQR is body:mu*((2/r)-(1/a)).
+    local vSQR is body:mu*((2/r3)-(1/a)).
     set __v to SQRT(vSQR).
     return __v.
 }
@@ -488,7 +488,7 @@ FUNCTION getRadialVel {
     parameter r1 is apoapsis, r2 is periapsis, r3 is altitude, hypothetical is true.
     local __v is 0.
     local __vv is 0.
-    local r is 0.
+    local r0 is 0.
     IF hypothetical {
         set r1 to getApoapsis(r1,r2,r3).
         set r2 to getPeriapsis(r1,r2,r3).
@@ -506,7 +506,7 @@ FUNCTION getRadialVel {
     set r2 to addRadius(r2).
 
     local srm is r2*v_r2.
-    local fpa is arccos(srm/(__v*r)).
+    local fpa is arccos(srm/(__v*r0)).
 
     set __vv to __v*sin(fpa).
 
@@ -525,7 +525,6 @@ FUNCTION getFlightPathAngle {
     }
     local __v is getOrbVel(r1,r2,r3,false).
     local v_r2 is getOrbVel(r1,r2,r2,false).
-    local r is addRadius(r3).
     set r2 to addRadius(r2).
     set r1 to addRadius(r1).
 

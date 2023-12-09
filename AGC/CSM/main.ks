@@ -1,7 +1,5 @@
 // kOS config
 
-set CONFIG:CLOBBERBUILTINS to true.
-
 GLOBAL _AGC_DEBUG_INFO IS LEXICON(
     "Programs Loaded", LIST(),
     "Routines Loaded", LIST()
