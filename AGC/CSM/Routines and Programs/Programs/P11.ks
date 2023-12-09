@@ -46,6 +46,7 @@ LOCAL FUNCTION P11_DISPUPDT {
         // begin flashing
         EXT_DSKY_GCDISPLAYREQ("V16N44").
         ADD_STEP("P00").
+        ADD_STEP("TERM").
         set _doneOnce to true.
     } ELSE IF NOT(periapsis > 70000 and throttle = 0) { EXT_DSKY_GCDISPLAYREQ("V06N62"). }
 }

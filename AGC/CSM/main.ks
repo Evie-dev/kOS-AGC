@@ -116,7 +116,7 @@ FUNCTION _AGC_MAIN_UPDATE {
             
             local _rqst is "V" + _rqstVerb + "N" + _rqstNoun.
             set _DSKY_STATE:PRO to true.
-            EXT_DSKY_GCDISPLAYREQ(_request).
+            EXT_DSKY_GCDISPLAYREQ(_request, true).
         } ELSE IF _request:startswith("V") {
             local _rqstVerb is 0.
             // Indexes 2 and 2 contain the V erb
@@ -125,7 +125,7 @@ FUNCTION _AGC_MAIN_UPDATE {
             set _rqstVerb to _request[1].
             set _rqstVerb to _rqstVerb+_request[2].
             local _rqst is "V" + _rqstVerb + "N00".
-            EXT_DSKY_GCDISPLAYREQ(_rqst).
+            EXT_DSKY_GCDISPLAYREQ(_rqst,true).
         } 
         ELSE IF _request = "TERM" {
             routine_END:call.
@@ -134,7 +134,7 @@ FUNCTION _AGC_MAIN_UPDATE {
             // reset 
             // clear the registers 
 
-            EXT_DSKY_GCDISPLAYREQ("V00N00").
+            EXT_DSKY_GCDISPLAYREQ("V00N00",true).
 
             // TODO: redisplay behaviour
 

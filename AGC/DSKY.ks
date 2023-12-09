@@ -421,7 +421,6 @@ LOCAL function DSKY_buttonHandler_PRO {
     // PROCEDE button, has two primary functions:
     // PROCEDE in the routine/program
     // ACCEPT requests from the computer (manuvers, engine burns ect)
-
     set _DSKY_STATE:PRO TO TRUE.
 
 }
@@ -470,7 +469,7 @@ LOCAL FUNCTION DSKY_buttonHandler_CLR {
 set _inputCLR:onclick to DSKY_buttonHandler_CLR@.
 
 LOCAL FUNCTION DKSY_buttonHandler_RSET {
-    DSKY_INPUT_HANDLER("R").
+    // does nothing for now
 }
 
 set _inputRSET:onclick to DKSY_buttonHandler_RSET@.
@@ -655,16 +654,22 @@ LOCAL FUNCTION DSKY_ENTER {
 
     ELSE IF _VERB = "11" {
         // Monitor Octal component 1 in R1
+        DSKY_READ_WRITE("READ").
     } ELSE IF _VERB = "12" {
         // Monitor Octal component 2 in R1
+        DSKY_READ_WRITE("READ").
     } ELSE IF _VERB = "13" {
         // Monitor Octal component 3 in R1
+        DSKY_READ_WRITE("READ").
     } ELSE IF _VERB = "14" {
         // Monitor Octal components 1,2 in R1,R2
+        DSKY_READ_WRITE("READ").
     } ELSE IF _VERB = "15" {
         // Monitor Octal components 1,2,3 in R1,R2,R3
+        DSKY_READ_WRITE("READ").
     } ELSE IF _VERB = "16" {
         // Monitor Decimal components 1,2,3 in R1,R2,R3
+        DSKY_READ_WRITE("READ").
     } ELSE IF _VERB = "17" {
         // Not used i think
     }
@@ -751,6 +756,7 @@ LOCAL FUNCTION DSKY_ENTER {
         // Proceede without inputs of dsky
     } ELSE IF _VERB = "34" {
         // TERMINATE PROGRAM/FUNCTION
+        _AGC_PROGRAMUPDATE("P00"). // goes to P00
     } ELSE IF _VERB = "35" {
         // light test
         DSKY_LIGHTTEST().
@@ -989,7 +995,13 @@ LOCAL FUNCTION DSKY_READ_WRITE {
 
         }
         local _VERB is vrb.
-        IF _VERB = "01" {
+        local _NOUN is non.
+        IF _VERB = "00" and _NOUN = "00" {
+            set _DSKYdisplayREG:R1 to "".
+            set _DSKYdisplayREG:R2 to "".
+            set _DSKYdisplayREG:R3 to "".
+        }
+        ELSE IF _VERB = "01" {
             set _DSKYdisplayREG:R1 to _comp1Disp.
             set _DSKYdisplayREG:R2 to "".
             set _DSKYdisplayREG:R3 to "".
@@ -1158,7 +1170,7 @@ LOCAL FUNCTION _INTERPRET {
 // EXTERNAL DSKY INTERFACING FUNCTIONS
 
 FUNCTION EXT_DSKY_GCDISPLAYREQ {
-    parameter disp_req is "".
+    parameter disp_req is "", _PRO_OVERRIDE IS FALSE.
     local _orig is disp_req.
     // allows the AGC to display data on the DSKY upon request
     set disp_req to _INTERPRET(disp_req).
@@ -1167,7 +1179,7 @@ FUNCTION EXT_DSKY_GCDISPLAYREQ {
     // so we check for priority verbs first
 
     // check to see which combination we are displaying currently, if these two match or if we are currently keyed to V00N00 we will allow the data to be displayed, otherwise we will activate the KEYREL button
-    IF NOT(_DSKY_STATE:INHB:INP = _orig or _DSKY_STATE:INHB:INP = "V00N00") and NOT(_DSKY_STATE:STACK:CONTAINS(_orig)) {
+    IF NOT(_PRO_OVERRIDE) and (NOT(_DSKY_STATE:INHB:INP = _orig or _DSKY_STATE:INHB:INP = "V00N00") and NOT(_DSKY_STATE:STACK:CONTAINS(_orig))) {
         _DSKY_STATE:STACK:ADD(_orig).
         print "+".
         set _DSKYdisplayREG:KEYREL to true.

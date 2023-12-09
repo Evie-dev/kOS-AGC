@@ -52,8 +52,9 @@ FUNCTION _AGC_PROGRAMUPDATE {
     }
     ELSE IF newProgram = "01" {
         // prelaunch / service init
+        P01_INIT().
     } ELSE IF newProgram = "02" {
-
+        P02_INIT().
     } ELSE IF newProgram = "11" {
         P11_INIT().
     }
