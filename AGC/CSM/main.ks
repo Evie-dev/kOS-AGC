@@ -96,11 +96,6 @@ FUNCTION _AGC_MAIN_UPDATE {
             set _AGC:DoingRoutine to true.
             _AGC_ROUTINEUPDATE(_rqstRoutine).
         } ELSE IF _request:contains("V") and _request:contains("N") { // V37N00 format
-            IF _request:startswith("FL") {
-                // FLASHING
-                set _DSKY_STATE:NEEDS_INPUT TO TRUE.
-                set _request to _request:remove(0,2).
-            }
             local _rqstVerb is 0.
             local _rqstNoun is 0.
             // Indexes 2 and 2 contain the V erb
@@ -149,7 +144,6 @@ FUNCTION _AGC_MAIN_UPDATE {
         set _DSKY_STATE:PRO TO FALSE.
 
         IF _AGC_INPUTQUEUE:LENGTH = ROUTINE_INDEXER {
-            print "no new routine!".
             // clear the input queue to save on ram
             _AGC_INPUTQUEUE:CLEAR.
             set ROUTINE_INDEXER to 0.
@@ -168,9 +162,7 @@ FUNCTION _AGC_MAIN_UPDATE {
 
 LOCAL FUNCTION _AGC_UPDATER_CLOCK {
     local _t1 is TIMESPAN(TIME:SECONDS- _CORE_MEMORY:TIME0).
-    set _CORE_MEMORY:TIME2H TO ABS(FLOOR(_t1:hours)).
-    set _CORE_MEMORY:TIME2M TO ABS((60*_CORE_MEMORY:TIME2H)-FLOOR(_t1:minutes)).
-    set _CORE_MEMORY:TIME2S TO ABS(((3600*_CORE_MEMORY:TIME2H)+(60*_CORE_MEMORY:TIME2M))-_t1:seconds).
+    set _CORE_MEMORY:TIME2 to _t1.
 }
 
 LOCAL FUNCTION _AGC_UPDATER_SERVICER {
@@ -189,7 +181,5 @@ LOCAL FUNCTION _AGC_SERVICER_UPDATE {
 
 FUNCTION ADD_STEP {
     parameter stepName is "".
-    print "added step: " + stepName.
-    print _AGC_INPUTQUEUE:LENGTH.
     _AGC_INPUTQUEUE:add(stepName).
 }

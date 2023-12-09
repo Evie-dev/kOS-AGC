@@ -45,6 +45,13 @@ LOCAL FUNCTION R03_FINISH {
     local _quadB is ship:partstagged("CSM_RCS_B").
     local _quadC is ship:partstagged("CSM_RCS_C").
     local _quadD is ship:partstagged("CSM_RCS_D").
+    // show actuation toggles
+    // potentially could fix for what i mentioned about quadC - yes it is
+
+    doPartEvent(_quadA, "Show Actuation Toggles").
+    doPartEvent(_quadB, "Show Actuation Toggles").
+    doPartEvent(_quadC, "Show Actuation Toggles").
+    doPartEvent(_quadD, "Show Actuation Toggles").
 
 
     // setup row 1 for the config
@@ -52,24 +59,10 @@ LOCAL FUNCTION R03_FINISH {
 
 
     // The Apollo Coordinate system which was defined in a document titled "PROJECT APOLLO COORDINATE SYSTEM STANDARDS" Dated June 1st 1965 states that the X axis which is set in translation by the DAP is forward/back (in KSP like pressing H/N for translation)
-
-    IF B1 = 0 {
-        // Disable A/C for X translation
-        setPartField(_quadA, "Fore/aft", false).
-        setPartField(_quadC, "Fore/aft", false).
-    } ELSE IF B1 = 1 {
-        // Use A/C
-        setPartField(_quadA, "Fore/aft", true).
-        setPartField(_quadC, "Fore/aft", true).
-    }
-    IF C1 = 0 {
-        // disable B/D for translation
-        setPartField(_quadB, "Fore/aft", false).
-        setPartField(_quadD, "Fore/aft", false).
-    } ELSE IF C1 = 1 {
-        setPartField(_quadB, "Fore/aft", true).
-        setPartField(_quadD, "Fore/aft", true).
-    }
+    setPartField(_quadA, "Fore/aft", B1 = 1).
+    setPartField(_quadC, "Fore/aft", B1 = 1).
+    setPartField(_quadB, "Fore/aft", C1 = 1).
+    setPartField(_quadD, "Fore/aft", C1 = 1).
 
     // set the thruster quad used for ROLL
 

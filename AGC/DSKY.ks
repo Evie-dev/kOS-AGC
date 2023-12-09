@@ -39,7 +39,10 @@ GLOBAL _DSKYdisplayREG is LEXICON(
     "NOUN", "00",
     "R1", "+00000",
     "R2", "+00000",
-    "R3", "+88888"
+    "R3", "+88888",
+
+    "LAST_VERB", "00",
+    "LAST_NOUN", "00"
 ).
 
 GLOBAL _DSKY_STATE IS LEXICON(
@@ -395,8 +398,14 @@ LOCAL function DSKY_buttonHandler_VERB {
     // verb buttonpress
     // validation functions come later when i plan to release this first segment
 
-    SET _DSKY_STATE:INPUT_MODE TO "V".
-    set _DSKYdisplayREG:VERB to "".
+    // check if we can actually do this
+    // (We dont want to be editing V/N while we are currently editing R1 R2 or R3 because that'd be stupid
+    IF NOT(LIST("R1", "R2", "R3"):contains(_DSKY_STATE:INPUT_MODE)) {
+        set _DSKYdisplayREG:LAST_VERB to _DSKYdisplayREG:VERB.
+        SET _DSKY_STATE:INPUT_MODE TO "V".
+        set _DSKYdisplayREG:VERB to "".
+    }
+    
 
 }
 
@@ -404,9 +413,11 @@ set _inputVERB:onclick to DSKY_buttonHandler_VERB@.
 
 LOCAL function DSKY_buttonHandler_NOUN {
     // noun buttonpress
-
-    SET _DSKY_STATE:INPUT_MODE to "N".
-    set _DSKYdisplayREG:NOUN TO "".
+    IF NOT(LIST("R1", "R2", "R3"):contains(_DSKY_STATE:INPUT_MODE)) {
+        SET _DSKY_STATE:INPUT_MODE to "N".
+        set _DSKYdisplayREG:LAST_NOUN to _DSKYdisplayREG:NOUN.
+        set _DSKYdisplayREG:NOUN TO "".
+    }
 }
 
 set _inputNOUN:onclick to DSKY_buttonHandler_NOUN@.
@@ -551,7 +562,6 @@ set _inputNINE:onclick to DKSY_buttonHandler_NINE@.
 
 FUNCTION DSKY_INPUT_HANDLER {
     parameter input is "".
-    print input.
     local _validInput is true. // begin by assuming the input is valid
     local _inputLocation is "". // the part of the _DSKYdisplayREG we wish to place this new value in
     local _currentInputValue is "".
@@ -623,6 +633,15 @@ LOCAL FUNCTION DSKY_ENTER {
     local _R3 is _DSKYdisplayREG:R3.
     local _INPUT_MODE IS _DSKY_STATE:INPUT_MODE.
     local _canResetInputMode is true.
+
+    print "DSKY ENTER".
+    print "PROG: " + _DSKYdisplayREG:PROG.
+    print "VERB: " + _DSKYdisplayREG:VERB.
+    print "NOUN: " + _DSKYdisplayREG:NOUN.
+    print "R1: " + _DSKYdisplayREG:R1.
+    print "R2: " + _DSKYdisplayREG:R2.
+    print "R3: " + _DSKYdisplayREG:R3.
+
 
     // First check the verb
     
@@ -764,7 +783,10 @@ LOCAL FUNCTION DSKY_ENTER {
     } ELSE {
         _extendedVerbs(_VERB).
     }
-    IF _canResetInputMode { set _DSKY_STATE:INPUT_MODE to "NO". }
+    IF _canResetInputMode {
+        set _DSKYdisplayREG:LAST_VERB to _VERB.
+        set _DSKY_STATE:INPUT_MODE to "NO". 
+    }
 }
 
 FUNCTION DSKY_UPDATE_CYCLE {
@@ -790,7 +812,6 @@ FUNCTION DSKY_REFRESH_CYCLE {
         // refresh the displays
         set _DSKY_STATE:FLASH:O to NOT(_DSKY_STATE:FLASH:O). // master flash value - basically controlls all of the flashing functionality of the displays
         // check to see if we are flashing either verb or noun
-        print _DSKY_STATE:FLASH:O.
 
         IF _DSKY_STATE:FLASH:O {
             IF (_DSKY_STATE:FLASH:V or _DSKY_STATE:FLASH:N) {
@@ -891,6 +912,11 @@ LOCAL FUNCTION DSKY_READ_WRITE {
                 local _workingFormat is _values:F.
                 local _dp is 0.
                 local _neg is false.
+                
+                IF _MEM_DATATYPES:TIME:contains(_values:A) {
+                    // its actually a time value, we therefore must figure out what we display
+                    set _workingValue to _DSKY_TIMEDECONSTRUCTOR(_workingValue, _workingFormat).
+                }
 
                 IF _workingValue:istype("String") {
                     set _workingValue to _workingValue:tonumber.
@@ -918,43 +944,40 @@ LOCAL FUNCTION DSKY_READ_WRITE {
 
                 set vString to _workingValue:tostring.
 
-                IF _workingFormat:contains(".") {
-                    // remove the decimal point
-                    local _requiredDecimalPlaces is _dp.
-                    local _actualDecimalPlaces is 0.
-                    IF vString:contains(".") {
-                        local _tempstring is vString.
-                        set _actualDecimalPlaces to (vString:length-1)-vString:FIND(".").
-                        set vString to _tempString:remove(vString:find("."), 1).
-                    }
-                    local _missingDecimalPlaces is (_requiredDecimalPlaces-_actualDecimalPlaces)-1.
-                    IF _missingDecimalPlaces = 1 {
-                        set vString to vString+"0".
-                    } ELSE IF _missingDecimalPlaces = 2 {
-                        set vString to vString+"00".
-                    } ELSE IF _missingDecimalPlaces = 3 {
-                        set vString to vString+"000".
-                    } ELSE IF _missingDecimalPlaces = 4 {
-                        set vString to vString+"0000".
-                    }
-                }
+                local _prepad is "".
 
                 
+
+                
+
+
                 // ensure it conforms to the 5 digit limit
 
-                IF vString:length < 5 {
-                    IF vString:length = 4 {
-                        set vString to "0"+vString.
-                    } ELSE IF vString:length = 3 {
-                        set vString to "00"+vString.
-                    } ELSE IF vString:length = 2 {
-                        set vString to "000" + vString.
-                    } ELSE IF vString:length = 1 {
-                        set vString to "0000" + vString.
+                
+
+                FOR i in _workingFormat {
+                    
+                    IF i = "0" {
+                        set _prepad to "0"+_prepad.
                     } ELSE {
-                        set vString to "00000".
+                        break.
                     }
                 }
+                set vString to _prepad+vString.
+
+                // perform post pad
+
+                local _postpad is "".
+                IF vstring:length = 1 {
+                    set _postpad to "0000".
+                } ELSE IF vstring:length = 2 {
+                    set _postpad to "000".
+                } ELSE IF vstring:length = 3 {
+                    set _postpad to "00".
+                } ELSE IF vstring:length = 4 {
+                    set _postPad to "0".
+                }
+                set vString to _postpad+vString.
 
                 IF _workingFormat:contains("b") {
                     // add a zero at the location of "b"
@@ -1118,6 +1141,7 @@ LOCAL FUNCTION DSKY_READ_WRITE {
             PUSH_2_MEM(_inputR3, _formatR3, _addressR3).
         }
         set _DSKY_STATE:INPUT_MODE to "NONE".
+        set _DSKYdisplayREG:VERB to _DSKYdisplayREG:LAST_VERB.
     }
 }
 
@@ -1147,7 +1171,8 @@ LOCAL FUNCTION _INTERPRET {
 
     local _rVERB is "00".
     local _rNOUN is "00".
-
+    local _rFLASH is false.
+    IF _codeToInterpret:contains("FL") { set _rFLASH to true. }
     IF _codeToInterpret:contains("V") {
         local _vIndx is _codeToInterpret:FIND("V")+1.
         set _rVERB to _codeToInterpret[_vIndx].
@@ -1157,9 +1182,124 @@ LOCAL FUNCTION _INTERPRET {
         local _vIndx is _codeToInterpret:FIND("N")+1.
         set _rNOUN to _codeToInterpret[_vIndx].
         set _rNOUN to _rNOUN+_codeToInterpret[_vIndx+1].
+    } ELSE {
+        set _rNOUN to _DSKYdisplayREG:NOUN.
     }
 
-    return lexicon("VERB", _rVERB, "NOUN", _rNOUN).
+    return lexicon("VERB", _rVERB, "NOUN", _rNOUN, "FLASH", _rFLASH).
+}
+
+LOCAL FUNCTION _DSKY_TIMEDECONSTRUCTOR {
+    parameter tValue is time:seconds, tFormat is "MMbSS", ignoremaximums is false.
+    local _returnDisp is "".
+    IF tValue:istype("String") { set tValue to tValue:tonumber. }
+    ELSE IF tValue:istype("TimeSpan") { set tValue to tValue:seconds. }
+    // FIRST ATTEMPT I WILL TRY AND DETERMINE IGNOREMAXIMUMS AUTOMATICALLY BY DETERMINING IF WE HAVE A "BLANK"
+    // H - Hours
+    // M - Minutes
+    // S - Seconds
+    // b - blank (input a zero)
+
+    // If we ignore maximums we will ignore the highest value allowable under normal circumstances
+    // For example, if we have MMbSS we will ignore the maximum allowed number of minutes on a clock (60) for the minutes, and so on with seconds and hours (days werent supported on the AGC)
+    // it is mentioned that if i decide to use this section of code, if you, the technically minded nerdy user wanted to create your own display with a time you would have to include your address name under "TIME" in the variable called _MEM_DATATYPES
+    // _MEM_DATATYPES will ALWAYS assume that the number is a decimal unless told otherwise (DAPDATR1 and DAPDATR2 are octal components)
+    // this will also have to be reversed when writing new time data, but that is a different kettle of fish and will be easier when i can display and know how i display because then we just do that in reverse
+
+    // TIME datatypes should also use the following dummy addresses to display 
+
+    local _asSpan is tValue.
+
+    IF NOT(_asSpan:istype("TimeSpan")) { set _asSpan to timespan(_asSpan). }
+
+    local _hh is _asSpan:HOURS.
+    local _mm is _asSpan:MINUTES.
+    local _ss is _asSpan:SECONDS.
+    local _centiseconds is abs(FLOOR(tValue)-tValue). // should give a number between 0 and 1
+
+    set ignoremaximums to tFormat:contains("b") or tFormat:contains("H").
+    // according to the documentation i have hrs always ignores the maximum value
+
+    // maximum value per row is 9 (1*10^rows-1)
+
+    // start by going through the format string to find how many occourances of H, M and S (before a decimal point) we have to determine the maximum value
+    // decimal point values will just be appended to seconds if we find any
+    local _maxHH is 0.
+    local _maxMM is 0.
+    local _maxSS is 0.
+    local _largestDisplayValue is "HH".
+    FOR i in tFormat {
+        IF i = "H" {
+            set _maxHH to _maxHH+1.
+        } ELSE IF i = "M" { set _maxMM to _maxMM+1. }
+        ELSE IF i = "S" { set _maxSS to _maxSS+1. }
+        ELSE IF i = "." { break. } // stop right here partner, thats a decimal point
+    }
+    
+    set _maxHH to max(0, (1*10^_maxHH)-1).
+    set _maxMM to max(0, (1*10^_maxMM)-1).
+    set _maxSS to max(0, (1*10^_maxSS)-1).
+    // this still works 
+    IF _maxHH > 0 {
+        set _largestDisplayValue to "HH".
+        set _maxMM to 59.
+        set _maxSS to 59.
+        // ensure the minutes and seconds are set correctly
+        set _mm to _asSpan:MINUTE.
+        set _ss to _asSpan:SECOND.
+    } ELSE IF _maxMM > 0 {
+        set _largestDisplayValue to "MM".
+        set _maxSS to 59.
+        set _ss to _asSpan:SECOND.
+    } ELSE {
+        set _largestDisplayValue to "SS".
+    }
+
+    IF NOT(ignoreMaximums) {
+        // TODO: RO COMPATABILITY CHECK, SET HOMEWORLD VARIABLE
+        set _maxHH to timespan(ROUND(Kerbin:rotationperiod)):HOURS.
+        set _maxMM to 59.
+        set _maxSS to 59.
+    }
+    set _hh to min(_hh, _maxHH).
+    set _mm to min(_mm, _maxMM).
+    set _ss to min(_ss, _maxSS).
+
+    set _hh to _hh:tostring.
+    set _mm to _mm:tostring.
+    set _ss to _ss:tostring.
+    set _ss to _ss.
+    // 2 variables so i can switch between them
+    local _indxH is 0.
+    local _indxM is 0.
+    local _indxS is 0.
+    FOR i in tFormat {
+        IF i = "." {
+            break.
+        }
+        ELSE IF i = "H" AND NOT(_hh:length-1 < _indxH) {
+            set _returnDisp to _returnDisp+_hh[_indxH].
+            set _indxH to _indxH+1.
+        } ELSE IF i = "M" AND NOT(_mm:length-1 < _indxM) {
+            set _returnDisp to _returnDisp+_mm[_indxM].
+            set _indxM to _indxM+1.
+        } ELSE IF i = "S" AND NOT(_ss:length-1 < _indxS) {
+            set _returnDisp to _returnDisp+_ss[_indxS].
+            set _indxS to _indxS+1.
+        }
+        ELSE IF i = "b" {
+            set _returnDisp to _returnDisp+"0".
+        } ELSE IF i = "0" {
+            set _returnDisp to _returnDisp+"0".
+        }
+    }
+    IF tFormat:endswith("S") and tFormat:contains(".") {
+        set _returnDisp to _returnDisp:tonumber.
+        set _returnDisp to _returnDisp+_centiseconds.
+        set _returnDisp to _returnDisp:tostring.
+    }
+
+    return _returnDisp.
 }
 
 
@@ -1174,19 +1314,26 @@ FUNCTION EXT_DSKY_GCDISPLAYREQ {
     // check to see if the VN set provided is an important display item (i.e V99 ect ect)
     // so we check for priority verbs first
 
+    IF _orig:contains("V99") or _orig:contains("V50") {
+        // OVERIDE!
+
+    }
+
     // check to see which combination we are displaying currently, if these two match or if we are currently keyed to V00N00 we will allow the data to be displayed, otherwise we will activate the KEYREL button
     IF NOT(_PRO_OVERRIDE) and (NOT(_DSKY_STATE:INHB:INP = _orig or _DSKY_STATE:INHB:INP = "V00N00") and NOT(_DSKY_STATE:STACK:CONTAINS(_orig))) {
         _DSKY_STATE:STACK:ADD(_orig).
-        print "+".
         set _DSKYdisplayREG:KEYREL to true.
     } ELSE {
         // display the combination by just setting the registers (they will update in the next cycle so its okay)
         // actually dont do this because uh, it may cause problems when this updates every cycle
         // maybe uh something like this
+        set _DSKY_STATE:FLASH:V to disp_req:FLASH.
+        set _DSKY_STATE:FLASH:N to disp_req:FLASH.
         IF _DSKY_STATE:INPUT_MODE = "NO" {
             // we can display the VN combo
             set _DSKYdisplayREG:VERB to disp_req:VERB.
             set _DSKYdisplayREG:NOUN to disp_req:NOUN.
+            
         }
         set _DSKY_STATE:INHB:INP to _orig.
         DSKY_READ_WRITE("READ", disp_req:VERB, disp_req:NOUN).
