@@ -39,9 +39,14 @@ LOCAL FUNCTION loadRoutines {
 FUNCTION _AGC_ROUTINEUPDATE {
     parameter calledRoutine is "00".
 
-    IF calledRoutine = "03" {
+    IF calledRoutine = "R03" {
         R03_INIT().
-    } ELSE IF calledRoutine = "30" {
+    } ELSE IF calledRoutine = "R30" {
         R30_INIT().
+    } ELSE IF calledRoutine = "R60" {
+        R60_INIT().
+    } 
+    ELSE IF calledRoutine = "R62" {
+        R62_INIT().
     }
 }

@@ -3,6 +3,8 @@
 // All programs will have the following function:
 local _doneOnce is false.
 FUNCTION P11_INIT {
+    set _DSKY_STATE:PRO to true.
+
     // this will be global for functions and routines, allowing for a more streamlined useage
 
     set _UPDLOOP_POINTER_VAR to P11_VARUPDT@.

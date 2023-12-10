@@ -2,6 +2,7 @@
 
 FUNCTION P00_INIT {
     // setup idling function
+    set _DSKY_STATE:PRO to true.
 
     set _UPDLOOP_POINTER_VAR to P00_VARUPD@.
     set _UPDLOOP_POINTER_DISP to P00_DISPUPD@.

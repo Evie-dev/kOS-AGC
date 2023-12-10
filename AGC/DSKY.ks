@@ -48,7 +48,7 @@ GLOBAL _DSKYdisplayREG is LEXICON(
 GLOBAL _DSKY_STATE IS LEXICON(
     "clock", LEXICON("first", 0, "last", 0, "alive", 0, "update", 0, "refresh", 1.5),
     // first clock cycle (INIT CYCLE), last clock cycle (CURRENT CLOCK CYCLE), time the GC has been active, last time the screens were updated, the refresh rate (in Hz)
-    "INHB", LEXICON("V37", FALSE, "INP", "V00N00"), // V37 program inhibit and the data inhibit
+    "INHB", LEXICON("V37", FALSE, "INP", "V00N00", "BLANK_REGISTERS", FALSE), // V37 program inhibit and the data inhibit
     // the data inhibit is used to tell the DSKY that if the AGC requests an update to the displays, which data it can request to update without causing a KEYREL ERR
     "STACK", LIST(), // list of data being requested to be shown by the AGC
     "stackIndexer", 0,
@@ -431,7 +431,11 @@ set _inputENTR:onclick to DSKY_buttonHandler_ENTER@.
 LOCAL function DSKY_buttonHandler_PRO {
     // PROCEDE button, has two primary functions:
     // PROCEDE in the routine/program
-    // ACCEPT requests from the computer (manuvers, engine burns ect)
+    // ACCEPT requests from the computer (manuvers, engine burns ect)#]
+    IF _DSKYdisplayREG:VERB = "99" {
+        set _DSKYdisplayREG:VERB to _DSKYdisplayREG:LAST_VERB.
+        set _AGC:PERMIT:ENGINE TO TRUE.
+    }
     set _DSKY_STATE:PRO TO TRUE.
 
 }
@@ -591,6 +595,8 @@ FUNCTION DSKY_INPUT_HANDLER {
         // MUST: 
         // start with "+" or "-"
         // be 5 (plus sign) characters long
+
+        // IF it is an octal we are entering (determined through LAST VERB, ensure it is also valid)
         
         IF _currentInputValue:startswith("+") or _currentInputValue:startswith("-") {
             // Double check we arent trying to do something dumb like ++ or -- or any combination of +-
@@ -609,7 +615,8 @@ FUNCTION DSKY_INPUT_HANDLER {
             // OPP ERR
 
             set _validInput to false.
-        } ELSE {
+        }
+        ELSE {
             // yeah this is valid... i think
 
         }
@@ -751,6 +758,7 @@ LOCAL FUNCTION DSKY_ENTER {
             set _DSKY_STATE:INPUT_MODE TO "R3".
             set _DSKYdisplayREG:R3 to "".
         } ELSE IF _INPUT_MODE = "R3" {
+            set _canResetInputMode to true.
             DSKY_READ_WRITE("WRITE").
         }
     }
@@ -785,6 +793,7 @@ LOCAL FUNCTION DSKY_ENTER {
     }
     IF _canResetInputMode {
         set _DSKYdisplayREG:LAST_VERB to _VERB.
+        print _DSKYdisplayREG:LAST_VERB.
         set _DSKY_STATE:INPUT_MODE to "NO". 
     }
 }
@@ -796,7 +805,6 @@ FUNCTION DSKY_UPDATE_CYCLE {
 
 FUNCTION DSKY_REFRESH_CYCLE {
     // refresh cycle for the display
-
     IF _DSKY_STATE:clock:first = 0 {
         // perform first update
         set _DSKY_STATE:clock:first to time:seconds.
@@ -836,13 +844,23 @@ FUNCTION DSKY_REFRESH_CYCLE {
 
 
         }
+        IF LIST("11", "12", "13", "14", "15", "16"):contains(_DSKYdisplayREG:VERB) and _DSKY_STATE:INPUT_MODE = "NO" {
+            // refresh the state first
 
+            DSKY_READ_WRITE("READ", _DSKYdisplayREG:VERB, _DSKYdisplayREG:NOUN).
+        }
         
         // refresh the three registers
+        IF NOT(_DSKY_STATE:INHB:BLANK_REGISTERS) {
+            set _EL_DISPLAYREG1:text to _DSKYdisplayREG:R1.
+            set _EL_DISPLAYREG2:text to _DSKYdisplayREG:R2.
+            set _EL_DISPLAYREG3:text to _DSKYdisplayREG:R3.
+        } ELSE {
+            set _EL_DISPLAYREG1:text to "".
+            set _EL_DISPLAYREG2:text to "".
+            set _EL_DISPLAYREG3:text to "".
+        }
         set _EL_PROGDISP:text to _DSKYdisplayREG:PROG.
-        set _EL_DISPLAYREG1:text to _DSKYdisplayREG:R1.
-        set _EL_DISPLAYREG2:text to _DSKYdisplayREG:R2.
-        set _EL_DISPLAYREG3:text to _DSKYdisplayREG:R3.
         set _DSKY_STATE:clock:update to time:seconds.
     }
 
@@ -865,16 +883,19 @@ LOCAL FUNCTION DSKY_READ_ADDRESS_TABLE {
 
             IF NOT(_adInfo:empty) {
                 IF _adInfo:length >= 1 {
-                    set _return:R1:A to _adInfo[0]:A.
-                    set _return:R1:F to _adInfo[0]:F.
+                    IF _adInfo[0]:haskey("A") and _adInfo[0]:haskey("F") {
+                        set _return:R1 to _adInfo[0].
+                    }
                 }
                 IF _adInfo:length >= 2 {
-                    set _return:R2:A to _adInfo[1]:A.
-                    set _return:R2:F to _adInfo[1]:F.
+                    IF _adInfo[1]:haskey("A") and _adInfo[1]:haskey("F") {
+                        set _return:R2 to _adInfo[1].
+                    }
                 }
                 IF _adInfo:length >=3 {
-                    set _return:R3:A to _adInfo[2]:A.
-                    set _return:R3:F to _adInfo[2]:F.
+                    IF _adInfo[2]:haskey("A") and _adInfo[2]:haskey("F") {
+                        set _return:R3 to _adInfo[2].
+                    }
                 }
             }
 
@@ -888,6 +909,8 @@ LOCAL FUNCTION DSKY_READ_WRITE {
     parameter md is "READ", vrb is _DSKYdisplayREG:VERB, non is _DSKYdisplayREG:NOUN. // for read and write functions
 
     local _addressingInfo is DSKY_READ_ADDRESS_TABLE(vrb, non).
+    print vrb.
+    print non.
 
     // 1. Do read first because its slightly (by slightly i mean a lot) more complex
 
@@ -915,7 +938,11 @@ LOCAL FUNCTION DSKY_READ_WRITE {
                 
                 IF _MEM_DATATYPES:TIME:contains(_values:A) {
                     // its actually a time value, we therefore must figure out what we display
-                    set _workingValue to _DSKY_TIMEDECONSTRUCTOR(_workingValue, _workingFormat).
+                    local _maxign is false.
+                    IF _addressingInfo[i]:haskey("ignMax") { set _maxign to _addressingInfo[i]:ignMax. }
+                    set _workingValue to _DSKY_TIMEDECONSTRUCTOR(_workingValue, _workingFormat, _maxign).
+                } ELSE IF _MEM_DATATYPES:VEC:contains(_values:A) {
+                    set _workingValue to _DSKY_READ_VECTOR(_workingValue, _workingFormat).
                 }
 
                 IF _workingValue:istype("String") {
@@ -1140,6 +1167,7 @@ LOCAL FUNCTION DSKY_READ_WRITE {
             PUSH_2_MEM(_inputR2, _formatR2, _addressR2).
             PUSH_2_MEM(_inputR3, _formatR3, _addressR3).
         }
+        print "reseting".
         set _DSKY_STATE:INPUT_MODE to "NONE".
         set _DSKYdisplayREG:VERB to _DSKYdisplayREG:LAST_VERB.
     }
@@ -1191,6 +1219,7 @@ LOCAL FUNCTION _INTERPRET {
 
 LOCAL FUNCTION _DSKY_TIMEDECONSTRUCTOR {
     parameter tValue is time:seconds, tFormat is "MMbSS", ignoremaximums is false.
+    print "ignoring maximums: " + ignoremaximums.
     local _returnDisp is "".
     IF tValue:istype("String") { set tValue to tValue:tonumber. }
     ELSE IF tValue:istype("TimeSpan") { set tValue to tValue:seconds. }
@@ -1215,9 +1244,10 @@ LOCAL FUNCTION _DSKY_TIMEDECONSTRUCTOR {
     local _hh is _asSpan:HOURS.
     local _mm is _asSpan:MINUTES.
     local _ss is _asSpan:SECONDS.
+    print _hh.
+    print _mm.
+    print _ss.
     local _centiseconds is abs(FLOOR(tValue)-tValue). // should give a number between 0 and 1
-
-    set ignoremaximums to tFormat:contains("b") or tFormat:contains("H").
     // according to the documentation i have hrs always ignores the maximum value
 
     // maximum value per row is 9 (1*10^rows-1)
@@ -1240,30 +1270,48 @@ LOCAL FUNCTION _DSKY_TIMEDECONSTRUCTOR {
     set _maxMM to max(0, (1*10^_maxMM)-1).
     set _maxSS to max(0, (1*10^_maxSS)-1).
     // this still works 
-    IF _maxHH > 0 {
+    IF _maxHH > 0 and tFormat:contains("H") {
         set _largestDisplayValue to "HH".
         set _maxMM to 59.
         set _maxSS to 59.
         // ensure the minutes and seconds are set correctly
         set _mm to _asSpan:MINUTE.
         set _ss to _asSpan:SECOND.
-    } ELSE IF _maxMM > 0 {
+    } ELSE IF _maxMM > 0 and tFormat:contains("M") {
         set _largestDisplayValue to "MM".
         set _maxSS to 59.
+        IF NOT(ignoremaximums) { set _maxMM to 59. }
         set _ss to _asSpan:SECOND.
     } ELSE {
         set _largestDisplayValue to "SS".
+        set _ss to _asSpan:SECOND.
     }
-
+    print _largestDisplayValue.
     IF NOT(ignoreMaximums) {
         // TODO: RO COMPATABILITY CHECK, SET HOMEWORLD VARIABLE
         set _maxHH to timespan(ROUND(Kerbin:rotationperiod)):HOURS.
         set _maxMM to 59.
         set _maxSS to 59.
     }
-    set _hh to min(_hh, _maxHH).
-    set _mm to min(_mm, _maxMM).
-    set _ss to min(_ss, _maxSS).
+    IF NOT(ignoremaximums) and _largestDisplayValue = "HH" { set _hh to FLOOR(min(_hh, _maxHH)). }
+    ELSE { set _hh to FLOOR(min(_hh, _maxHH)). }
+    IF NOT(ignoremaximums) and _largestDisplayValue = "MM" { set _mm to FLOOR(min(_mm, _maxMM)). }
+    ELSE { set _mm to FLOOR(min(_mm, _maxMM)). }
+    IF NOT(ignoremaximums) and _largestDisplayValue = "SS" { set _ss to FLOOR(min(_ss, _maxSS)). }
+    ELSE { set _ss to FLOOR(min(_ss, _maxSS)). }
+
+    IF ignoremaximums {
+        IF _largestDisplayValue = "HH" {
+            set _mm to FLOOR(min(_mm, _maxMM)).
+        } ELSE IF _largestDisplayValue = "MM" {
+            set _ss to FLOOR(min(_ss, _maxSS)).
+        }
+    } ELSE {
+        set _hh to FLOOR(min(_hh, _maxHH)).
+        set _mm to FLOOR(min(_mm, _maxMM)).
+        set _ss to FLOOR(min(_ss, _maxSS)).
+    }
+    print _mm.
 
     set _hh to _hh:tostring.
     set _mm to _mm:tostring.
@@ -1273,7 +1321,11 @@ LOCAL FUNCTION _DSKY_TIMEDECONSTRUCTOR {
     local _indxH is 0.
     local _indxM is 0.
     local _indxS is 0.
-    FOR i in tFormat {
+
+    local _indxr is 0.
+    local i is "".
+    FOR itm in tFormat {
+        set i to tFormat[_indxr].
         IF i = "." {
             break.
         }
@@ -1286,20 +1338,47 @@ LOCAL FUNCTION _DSKY_TIMEDECONSTRUCTOR {
         } ELSE IF i = "S" AND NOT(_ss:length-1 < _indxS) {
             set _returnDisp to _returnDisp+_ss[_indxS].
             set _indxS to _indxS+1.
-        }
-        ELSE IF i = "b" {
-            set _returnDisp to _returnDisp+"0".
         } ELSE IF i = "0" {
             set _returnDisp to _returnDisp+"0".
         }
+        set _indxr to min(_indxr+1, tFormat:length-1).
     }
     IF tFormat:endswith("S") and tFormat:contains(".") {
         set _returnDisp to _returnDisp:tonumber.
         set _returnDisp to _returnDisp+_centiseconds.
         set _returnDisp to _returnDisp:tostring.
     }
+    print _returnDisp.
 
     return _returnDisp.
+}
+
+LOCAL FUNCTION _DSKY_VALIDATE_OCTAL {
+    parameter toValidate is "".
+    IF toValidate:istype("Scalar") {
+        set toValidate to toValidate:tostring.
+    }
+    FOR i in toValidate {
+
+    }
+}
+
+LOCAL FUNCTION _DSKY_READ_VECTOR {
+    parameter vecRead is "", form is "".
+    // form can start with A B or C
+    // A - X
+    // B - Y
+    // C - Z
+
+    IF vecRead:istype("Vector") {
+        IF form:startswith("A") {
+            return vecRead:X.
+        } ELSE IF form:startswith("B") {
+            return vecRead:Y.
+        } ELSE IF form:startswith("C") {
+            return vecRead:Z.
+        }
+    }
 }
 
 
@@ -1314,24 +1393,32 @@ FUNCTION EXT_DSKY_GCDISPLAYREQ {
     // check to see if the VN set provided is an important display item (i.e V99 ect ect)
     // so we check for priority verbs first
 
-    IF _orig:contains("V99") or _orig:contains("V50") {
+    IF _orig:contains("V99") {
         // OVERIDE!
-
+        set _DSKYdisplayREG:LAST_VERB to _DSKYdisplayREG:VERB.
+        set _DSKYdisplayREG:VERB to disp_req:VERB.
+        set _DSKY_STATE:FLASH:V to true.
+        set _DSKY_STATE:FLASH:N to true.
+    } ELSE IF _orig = "BLANK REGISTERS" {
+        // blank the screen, ultimate priority imo i think
+        set _EL_DISPLAYREG1:text to "".
+        set _EL_DISPLAYREG2:text to "".
+        set _EL_DISPLAYREG3:text to "".
     }
 
     // check to see which combination we are displaying currently, if these two match or if we are currently keyed to V00N00 we will allow the data to be displayed, otherwise we will activate the KEYREL button
-    IF NOT(_PRO_OVERRIDE) and (NOT(_DSKY_STATE:INHB:INP = _orig or _DSKY_STATE:INHB:INP = "V00N00") and NOT(_DSKY_STATE:STACK:CONTAINS(_orig))) {
+    IF NOT(_orig = "BLANK REGISTERS") and (NOT(_PRO_OVERRIDE) and (NOT(_DSKY_STATE:INHB:INP = _orig or _DSKY_STATE:INHB:INP = "V00N00") and NOT(_DSKY_STATE:STACK:CONTAINS(_orig)))) {
         _DSKY_STATE:STACK:ADD(_orig).
         set _DSKYdisplayREG:KEYREL to true.
-    } ELSE {
+    } ELSE IF NOT(_orig = "BLANK_REGISTERS") {
         // display the combination by just setting the registers (they will update in the next cycle so its okay)
         // actually dont do this because uh, it may cause problems when this updates every cycle
         // maybe uh something like this
         set _DSKY_STATE:FLASH:V to disp_req:FLASH.
         set _DSKY_STATE:FLASH:N to disp_req:FLASH.
-        IF _DSKY_STATE:INPUT_MODE = "NO" {
+        IF _DSKY_STATE:INPUT_MODE = "NO" or _DSKY_STATE:INPUT_MODE = "NONE" {
             // we can display the VN combo
-            set _DSKYdisplayREG:VERB to disp_req:VERB.
+            IF NOT(_DSKYdisplayREG:VERB = "99") { set _DSKYdisplayREG:VERB to disp_req:VERB. }
             set _DSKYdisplayREG:NOUN to disp_req:NOUN.
             
         }

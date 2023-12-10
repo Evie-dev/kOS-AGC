@@ -1,13 +1,16 @@
 // extended verbs refer to many things, some are implimented in the DSKY.ks file due to being common between the AGC (CSM) and LGC (LEM AGC)
 FUNCTION _extendedVerbs {
     parameter eVerb is "00".
-
+    // V46 - Permit DAP
+    IF eVerb = "46" {
+        set _AGC:PERMIT:DAP to TRUE.
+    }
     // V48 - R03
-    IF eVerb = "48" {
+    ELSE IF eVerb = "48" {
         // do routine 3
         R03_INIT().
     } ELSE IF eVerb = "49" { // crew defined manuver R62
-
+        R62_INIT().
     } ELSE IF eVerb = "69" {
         reboot.
     } 

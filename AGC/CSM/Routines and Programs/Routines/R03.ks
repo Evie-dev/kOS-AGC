@@ -9,8 +9,9 @@ FUNCTION R03_INIT {
 
     set routine_END to R03_FINISH@.
 
-    ADD_STEP("FLV06N46").
+    ADD_STEP("FLV04N46").
     ADD_STEP("FLV06N47").
+    ADD_STEP("FLV06N48"). // gimbal angles
     ADD_STEP("TERM").
 }
 

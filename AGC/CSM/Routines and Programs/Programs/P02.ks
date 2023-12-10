@@ -1,5 +1,7 @@
 
 FUNCTION P02_INIT {
+    set _DSKY_STATE:PRO to true.
+
     set _UPDLOOP_POINTER_VAR to P02_VARUPDT@.
     EXT_DSKY_PROG("02").
 }

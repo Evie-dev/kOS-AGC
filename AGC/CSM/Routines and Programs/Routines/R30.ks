@@ -2,6 +2,7 @@
 
 FUNCTION R30_INIT {
     // update orbit vectors
+    set _DSKY_STATE:PRO to true.
 
     set _CORE_MEMORY:HAPOX to FLOOR(apoapsis*0.00054,1).
     set _CORE_MEMORY:HPERX to FLOOR(periapsis*0.00054,1).
@@ -13,5 +14,4 @@ FUNCTION R30_INIT {
 }
 
 LOCAL FUNCTION R30_FINISH {
-
 }
