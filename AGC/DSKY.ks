@@ -782,7 +782,7 @@ LOCAL FUNCTION DSKY_ENTER {
         // Proceede without inputs of dsky
     } ELSE IF _VERB = "34" {
         // TERMINATE PROGRAM/FUNCTION
-        _AGC_PROGRAMUPDATE("P00"). // goes to P00
+        _AGC_PROGRAMUPDATE("00"). // goes to P00
     } ELSE IF _VERB = "35" {
         // light test
         DSKY_LIGHTTEST().

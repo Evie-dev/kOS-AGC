@@ -8,6 +8,7 @@ local P40 is lexicon(
     "V99", FALSE
 ).
 
+local _R60procount is 0.
 local _doV99 is true. // set this to false to just do the manuver anyway
 local _v99time is 5.
 local _blankSTARTtime is 35.
@@ -42,12 +43,19 @@ FUNCTION P40_INIT {
     local _bt is abs(_m0-_m1)/_flowSPS.
 
     set _CORE_MEMORY:TIG to _CORE_MEMORY:TIG-(0.5*_bt).
+
+    // calculate the correct steering angle
+
+    set _CORE_MEMORY:THETAD to _eVelocity-_CORE_MEMORY:V.
     
     // set the TTOGO triggers
 
     when _CORE_MEMORY:ttogo < 35 then {
         // blank screen
-        set _DSKY_STATE:INHB:BLANK_REGISTERS to true.
+        IF _DSKYdisplayREG:PROG = "40" {
+            set _DSKY_STATE:INHB:BLANK_REGISTERS to true.
+        }   
+        
     }
     when _CORE_MEMORY:ttogo < 30 then {
         set _DSKY_STATE:INHB:BLANK_REGISTERS to false.
@@ -55,27 +63,31 @@ FUNCTION P40_INIT {
     // v99
     IF _doV99 {
         when _CORE_MEMORY:ttogo < 5 then {
-            EXT_DSKY_GCDISPLAYREQ("FLV99N40").
+            IF _DSKYdisplayREG:PROG = "40" { EXT_DSKY_GCDISPLAYREQ("FLV99N40"). }
         }
     } ELSE {
         when _CORE_MEMORY:ttogo < 5 then {
-            set _AGC:PERMIT:ENGINE to true.
+            IF _DSKYdisplayREG:PROG = "40" { set _AGC:PERMIT:ENGINE to true. }
         }
     }
+    set _R60procount to _DSKY_STATE:INPUTS:PRO+3.
 
     // call automanuver func
     R60_INIT().
-    ADD_STEP("V06N40").
-    ADD_STEP("TERM").
+    when _DSKY_STATE:INPUTS:PRO = _R60procount then {
+        ADD_STEP("V06N40").
+        ADD_STEP("TERM").
+    }
+    
 
 }
 
 LOCAL FUNCTION P40_VARUPT {
-    
+    local _currentVEL is _CORE_MEMORY:V. // velocity state vector
     IF _CORE_MEMORY:TIME2 > _CORE_MEMORY:TIG {
         IF _AGC:PERMIT:ENGINE {
             clearscreen.
-            local _currentVEL is _CORE_MEMORY:V. // velocity state vector
+            
             print "v " + _CORE_MEMORY:V:MAG.
             print "v t " + _eVelocity:mag.
             print "DVTOTAL " + _CORE_MEMORY:DVTOTAL.
@@ -93,10 +105,18 @@ LOCAL FUNCTION P40_VARUPT {
             }
         }
     }
+    IF _AGC:PERMIT:AUTOMNV {
+        // calculate P40 steering angle
 
+        set _CORE_MEMORY:THETAD TO _eVelocity-_currentVEL.
+    } 
     
 }
 
 LOCAL FUNCTION P40_DISPUPDT {
-    EXT_DSKY_GCDISPLAYREQ("FLV06N40", true).
+    IF _DSKY_STATE:INPUTS:PRO >= _R60procount {
+        EXT_DSKY_GCDISPLAYREQ("FLV06N40", true).
+    }
+
+    
 }

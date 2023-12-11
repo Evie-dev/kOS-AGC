@@ -9,6 +9,7 @@ GLOBAL _AGC IS LEXICON(
     "doingRoutine", false,
     "currentRoutineStep", "V00N00",
     "FLAG_PRO", FALSE,
+    "STEER_VEC", ship:facing:vector,
     "PERMIT", LEXICON(
         "DAP", FALSE,
         "AUTOMNV", FALSE,

@@ -7,6 +7,13 @@ FUNCTION P00_INIT {
     set _UPDLOOP_POINTER_VAR to P00_VARUPD@.
     set _UPDLOOP_POINTER_DISP to P00_DISPUPD@.
 
+    // reset flags
+
+    set _AGC:PERMIT:AUTOMNV to false.
+    set _AGC:PERMIT:ENGINE TO FALSE.
+    unlock throttle.
+    unlock steering.
+
     EXT_DSKY_PROG("00").
 
     // clear all the displays DIRECTLY

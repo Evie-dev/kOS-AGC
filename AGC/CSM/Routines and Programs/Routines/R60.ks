@@ -7,7 +7,7 @@ FUNCTION R60_INIT {
 
     when _AGC:PERMIT:AUTOMNV then {
         set _automnvTarg to _CORE_MEMORY:THETAD.
-        lock steering to _automnvTarg. // only needs to be called once
+        lock steering to _CORE_MEMORY:THETAD. // only needs to be called once
     }
     set routine_END to R60_FINISH@.
     ADD_STEP("FLV06N18").
@@ -16,5 +16,5 @@ FUNCTION R60_INIT {
 }
 
 LOCAL FUNCTION R60_FINISH {
-    set _AGC:PERMIT:AUTOMNV to false.
+    
 }
