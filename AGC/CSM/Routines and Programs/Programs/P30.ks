@@ -3,74 +3,50 @@
 // IMPORTANT NOTE ABOUT THE SCOPE OF P30
 // P30 does not EXECUTE manuvers, it only setsup the timings for the manuvers
 
-local P30 is lexicon(
-    "TN", 0, // time of node
-    "TB", 0 // time of burn
-).
+local proCount is 0.
 
 FUNCTION P30_INIT {
     set _DSKY_STATE:PRO to true.
     EXT_DSKY_PROG("30").
-    // TEMPORARY FEATURE
-    // IF WE HAVE A NODE ALREADY SET THE CODE WILL JUST USE IT RATHER THAN GO THROUGH P27 BECAUSE IM UNSURE HOW THAT WORKS AS OF CURRENT
-
-    IF hasNode {
-        local _p30NodeInput is nextnode.
-        
-        // setup the variables for the burn
-
-        local _dv is _p30NodeInput:deltav.
-        // input this into memory
-        local _ICDUang is _dv.
-        local _GETN is abs(_DSKY_STATE:clock:first-_p30NodeInput:TIME).
-
-        // input these angles and times and such
-
-        // what is our current mass? 
-
-        local _m0 is mass. // at burn start
-        local _mDELTA is 0. // mass lost due to the thrusting of engines
-        local _m1 is 0. // mass after the thrusting of engines
-
-        local _SPS is ship:partstagged("CSM_SPS")[0].
-
-        local _spsISP is _SPS:ISP.
-        local _spsTHRUST is _SPS:possiblethrust.
-        local _spsFLOW is _spsTHRUST/(_spsISP*constant:g0).
-
-        set _m1 to (_m0*constant:e^((-1*_p30nodeInput:deltav:mag)/(_spsISP*constant:g0))).
-        // this is the mass lost during the burn
-
-        set _mDELTA to abs(_m0-_m1).
-
-        local _bd is _mDELTA/_spsFLOW.
-        local _iT is _GETN-(0.5*_bd).
-        local _iUT is abs(_p30NodeInput:TIME-(0.5*_bd)).
-        print "NT: " + (_p30NodeInput:TIME-_iUT).
-
-        // ground time of ignition is: 
-        print "BT "+  _bd.
-        set _CORE_MEMORY:TIG to abs(_iT).
-        set _CORE_MEMORY:TOC to _iT+_bd. // TIG+burn duration
-        set _CORE_MEMORY:THETAD to _p30NodeInput:deltav.
-        local _fpsX is _dv:X*3.28084.
-        local _fpsY is _dv:Y*3.28084.
-        local _fpsZ is _dv:Z*3.28084.
-        set _CORE_MEMORY:DELVLVC to v(_fpsX, _fpsY, _fpsZ).
-        set _CORE_MEMORY:VGDISP to _CORE_MEMORY:DELVLVC:MAG.
-        local _dvtotal is VELOCITYAT(ship, _iUT):ORBIT:MAG+_p30NodeInput:deltav:mag.
-        set _CORE_MEMORY:DVTOTAL to _dvtotal*3.28084.
-        set _CORE_MEMORY:HAPO to _p30NodeInput:orbit:apoapsis*0.00054.
-        set _CORE_MEMORY:HPER to _p30NodeInput:orbit:apoapsis*0.00054.
-    }
+    // USE P27 TO INPUT NODE DATA
+    set proCount to _DSKY_STATE:INPUTS:PRO+2. // this will be the number of times procede has been pressed when we can start calculating resultant orbit data for the given information
+    // P30 begins by setting up two displays
+    set _UPDLOOP_POINTER_VAR to P30_VARUPDT@.
     ADD_STEP("FLV06N33").
     ADD_STEP("FLV06N81").
-    ADD_STEP("FLV16N45").
-    ADD_STEP("P00").
 }
 
 LOCAL FUNCTION P30_VARUPDT {
+    IF _DSKY_STATE:INPUTS:PRO = proCount-1 {
+        // we can now calculate and display the data relating to the new orbit parameters AFTER the burn
 
+        // 1. Place the state vector information into the memory
+        local _rtig is positionat(ship, _CORE_MEMORY:TIG+_CORE_MEMORY:TIME0).
+        local _vtig is velocityAt(ship, _CORE_MEMORY:TIG+_CORE_MEMORY:TIME0):orbit.
+        // add the impulsive deltav to vtig
+
+        // input into memory
+        set _DSKY_STATE:PRO to true.
+        set _CORE_MEMORY:RTIG TO _rtig.
+        set _CORE_MEMORY:VTIG TO _vtig.
+
+        // now we can calculate "stuff"
+        // our future orbit is stuff in this case
+
+        local _futurorbinfo is stateVectorIntegration(_CORE_MEMORY:RTIG, _CORE_MEMORY:VTIG+_CORE_MEMORY:DELVLVC).
+
+        // input these values into memory
+
+        set _CORE_MEMORY:DVTOTAL to (_vtig+_CORE_MEMORY:DELVLVC):mag.
+        set _CORE_MEMORY:HAPO to _futurorbinfo:apoapsis:a.
+        set _CORE_MEMORY:HPER to _futurorbinfo:periapsis:a.
+        set _CORE_MEMORY:VGDISP to _CORE_MEMORY:DVTOTAL-_vtig:mag.
+
+        ADD_STEP("FLV06N42").
+        ADD_STEP("FLV16N45").
+        ADD_STEP("P00").
+        set proCount to 0. // reset the pro count so we dont do something really dumb and keep adding steps
+    }
 }
 
 LOCAL FUNCTION P30_DISPUPDT {

@@ -26,13 +26,13 @@ LOCAL FUNCTION P11_VARUPDT {
 
     // Update the IVM
 
-    set _CORE_MEMORY:VMAGI to FLOOR(SHIP:velocity:ORBIT:MAG*3.28084). // IN FEET PER SECOND, zero decimal
-    set _CORE_MEMORY:HDOT to FLOOR(verticalSpeed*3.28084). // IN FPS, zero decimal
-    set _CORE_MEMORY["ALT 1"] to FLOOR(altitude*0.00054,1). // in NMI
+    set _CORE_MEMORY:VMAGI to ship:velocity:orbit:mag. // IN FEET PER SECOND, zero decimal
+    set _CORE_MEMORY:HDOT to verticalspeed. // IN FPS, zero decimal
+    set _CORE_MEMORY["ALT 1"] to altitude. // in NMI
 
     // update the orbit parameters
-    set _CORE_MEMORY:HAPOX to FLOOR(apoapsis*0.00054,1).
-    set _CORE_MEMORY:HPERX to FLOOR(periapsis*0.00054,1).
+    set _CORE_MEMORY:HAPOX to apoapsis.
+    set _CORE_MEMORY:HPERX to periapsis.
     set _CORE_MEMORY:TFF to ship:orbit:period.
     
 

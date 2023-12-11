@@ -2,6 +2,14 @@
 
 
 GLOBAL _CORE_MEMORY is LEXICON(
+    // state vectors
+    "R", v(0,0,0), // position state vector
+    "V", v(0,0,0), // velocity state vector
+    "RTIG", v(0,0,0),
+    "VTIG", v(0,0,0),
+    
+
+
     "CDUX", v(0,0,0),
     "THETAD", v(0,0,0),
 
@@ -50,5 +58,7 @@ GLOBAL _CORE_MEMORY is LEXICON(
 GLOBAL _MEM_DATATYPES IS LEXICON(
     "TIME", LIST("TFF", "GETI", "TIME2", "-TPER", "TTOGO", "TIG"),
     "OCTAL", LIST("DAPDATR1", "DAPDATR2"),
-    "VEC", LIST("CDUX","THETAD","DELVLVC", "DELVIMU", "DELVOV", "VGBODY")
+    "VEC", LIST("CDUX","THETAD","DELVLVC", "DELVIMU", "DELVOV", "VGBODY"),
+    "LENGTHS", LIST("VGDISP", "DVTOTAL", "DELVLVC","DELVIMU", "DELVOV", "VGBODY", "HAPOX", "HPERX", "HAPO", "HPER", "VMAGI", "HDOT", "ALT 1"),
+    "WEIGHTS", LIST("CSMMAS", "LEMMAS")
 ).

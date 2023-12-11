@@ -60,6 +60,9 @@ FUNCTION _AGC_PROGRAMUPDATE {
     } ELSE IF newProgram = "15" {
 
     } 
+    ELSE IF newProgram = "27" {
+        P27_INIT().
+    }
     ELSE IF newProgram = "30" {
         P30_INIT().
     } ELSE IF newProgram = "40" {

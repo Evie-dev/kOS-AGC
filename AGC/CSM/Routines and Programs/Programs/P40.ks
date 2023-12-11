@@ -8,6 +8,17 @@ local P40 is lexicon(
     "V99", FALSE
 ).
 
+local _doV99 is true. // set this to false to just do the manuver anyway
+local _v99time is 5.
+local _blankSTARTtime is 35.
+local _blankENDtime is 30.
+local _ignitionTIME is 0.
+// set these at your own pleasure
+
+// due to ksp being ksp i will add a value that isnt used in real life, to ensure i can update the delta v left
+
+local _eVelocity is 0.
+
 FUNCTION P40_INIT {
     set _DSKY_STATE:PRO to true.
     print "program 40".
@@ -15,6 +26,42 @@ FUNCTION P40_INIT {
     set P40:ic to _CORE_MEMORY:TIG.
     set _UPDLOOP_POINTER_VAR to P40_VARUPT@.
     set _UPDLOOP_POINTER_DISP to P40_DISPUPDT@.
+    // calculate the actual TIG for the burn
+
+    local _tN is _CORE_MEMORY:TIG.
+    local _nDV is _CORE_MEMORY:DELVLVC.
+    set _eVelocity to _CORE_MEMORY:VTIG+_CORE_MEMORY:DELVLVC.
+    print _eVelocity.
+
+    local _ispSPS is 314. // this is the stock variant
+    local _thrustSPS is 60. // again, stock
+    local _flowSPS is _thrustSPS/(_ispSPS*constant:g0).
+    local _m0 is mass.
+    local _m1 is _m0/(constant:e^(_nDV:mag/(constant:g0*_ispSPS))).
+
+    local _bt is abs(_m0-_m1)/_flowSPS.
+
+    set _CORE_MEMORY:TIG to _CORE_MEMORY:TIG-(0.5*_bt).
+    
+    // set the TTOGO triggers
+
+    when _CORE_MEMORY:ttogo < 35 then {
+        // blank screen
+        set _DSKY_STATE:INHB:BLANK_REGISTERS to true.
+    }
+    when _CORE_MEMORY:ttogo < 30 then {
+        set _DSKY_STATE:INHB:BLANK_REGISTERS to false.
+    }
+    // v99
+    IF _doV99 {
+        when _CORE_MEMORY:ttogo < 5 then {
+            EXT_DSKY_GCDISPLAYREQ("FLV99N40").
+        }
+    } ELSE {
+        when _CORE_MEMORY:ttogo < 5 then {
+            set _AGC:PERMIT:ENGINE to true.
+        }
+    }
 
     // call automanuver func
     R60_INIT().
@@ -24,41 +71,32 @@ FUNCTION P40_INIT {
 }
 
 LOCAL FUNCTION P40_VARUPT {
-    set P40:cc to _CORE_MEMORY:TIME2.
-    local _p40tf is P40:ic-P40:cc.
-    IF _p40tf:istype("timespan") { set P40:tf to abs(_p40tf:seconds). }
-    ELSE { set P40:tf to _p40tf. }
-
-    IF _CORE_MEMORY:TIME2:SECONDS > _CORE_MEMORY:TIG {
+    
+    IF _CORE_MEMORY:TIME2 > _CORE_MEMORY:TIG {
         IF _AGC:PERMIT:ENGINE {
-            IF throttle = 1 and _CORE_MEMORY:TIME2:SECONDS > _CORE_MEMORY:TOC {
+            clearscreen.
+            local _currentVEL is _CORE_MEMORY:V. // velocity state vector
+            print "v " + _CORE_MEMORY:V:MAG.
+            print "v t " + _eVelocity:mag.
+            print "DVTOTAL " + _CORE_MEMORY:DVTOTAL.
+            print "VGDISP " + _CORE_MEMORY:VGDISP.
+            set _CORE_MEMORY:VGDISP to _CORE_MEMORY:DVTOTAL-_CORE_MEMORY:V:MAG.
+            IF throttle = 1 and abs(_CORE_MEMORY:VGDISP) > 10 {
+                // update VGDISP
+                
+                 // as a magnitude this is 
+            } ELSE IF abs(_CORE_MEMORY:V:MAG-_CORE_MEMORY:DVTOTAL) < 10 {
+                // cutoff engines
                 lock throttle to 0.
-            } ELSE IF NOT(throttle = 1) {
+            } ELSE {
                 lock throttle to 1.
             }
-            
         }
     }
-
-    // update orbit parameters
-
 
     
 }
 
 LOCAL FUNCTION P40_DISPUPDT {
-    IF ((P40:tf < 35 and P40:tf >30) and NOT(_DSKY_STATE:INHB:BLANK_REGISTERS)) and throttle = 0 {
-        set _DSKY_STATE:INHB:BLANK_REGISTERS to true.
-    } ELSE IF (_DSKY_STATE:INHB:BLANK_REGISTERS and P40:tf < 30) and throttle = 0 {
-        set _DSKY_STATE:INHB:BLANK_REGISTERS to false.
-    } 
-    ELSE IF P40:tf < 5 and NOT(P40:V99) {
-        set P40:V99 to true.
-        EXT_DSKY_GCDISPLAYREQ("V99", true). // force V99
-        ADD_STEP("V06N40").
-        ADD_STEP("TERM").
-    } ELSE IF _DSKY_STATE:INHB:INP = "V06N40" {
-        // update the display
-        EXT_DSKY_GCDISPLAYREQ("V06N40").
-    }
+    EXT_DSKY_GCDISPLAYREQ("FLV06N40", true).
 }

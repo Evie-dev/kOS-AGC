@@ -58,7 +58,8 @@ GLOBAL _DSKY_STATE IS LEXICON(
     "NEEDS_INPUT", FALSE,
     "INPUT_INTERRUPT", FALSE,
     "INPUT_MODE", "NO",
-    "OUTPUT_MODE", TRUE // enable / disable inputs from the agc
+    "OUTPUT_MODE", TRUE, // enable / disable inputs from the agc
+    "INPUTS", LEXICON("PRO", 0, "ENTR", 0, "KEYREL", 0, "RSET", 0) // how many times has this button been pressed (a way of programs being able to check certain conditions)
 ).
 
 // Data test (REMOVED)
@@ -423,12 +424,14 @@ LOCAL function DSKY_buttonHandler_NOUN {
 set _inputNOUN:onclick to DSKY_buttonHandler_NOUN@.
 
 LOCAL FUNCTION DSKY_buttonHandler_ENTER {
+    set _DSKY_STATE:INPUTS:ENTR TO _DSKY_STATE:INPUTS:ENTR+1.
     DSKY_ENTER(). // this could honestly be its own script
 }
 
 set _inputENTR:onclick to DSKY_buttonHandler_ENTER@.
 
 LOCAL function DSKY_buttonHandler_PRO {
+    set _DSKY_STATE:INPUTS:PRO TO _DSKY_STATE:INPUTS:PRO+1.
     // PROCEDE button, has two primary functions:
     // PROCEDE in the routine/program
     // ACCEPT requests from the computer (manuvers, engine burns ect)#]
@@ -793,7 +796,6 @@ LOCAL FUNCTION DSKY_ENTER {
     }
     IF _canResetInputMode {
         set _DSKYdisplayREG:LAST_VERB to _VERB.
-        print _DSKYdisplayREG:LAST_VERB.
         set _DSKY_STATE:INPUT_MODE to "NO". 
     }
 }
@@ -909,8 +911,6 @@ LOCAL FUNCTION DSKY_READ_WRITE {
     parameter md is "READ", vrb is _DSKYdisplayREG:VERB, non is _DSKYdisplayREG:NOUN. // for read and write functions
 
     local _addressingInfo is DSKY_READ_ADDRESS_TABLE(vrb, non).
-    print vrb.
-    print non.
 
     // 1. Do read first because its slightly (by slightly i mean a lot) more complex
 
@@ -944,6 +944,30 @@ LOCAL FUNCTION DSKY_READ_WRITE {
                 } ELSE IF _MEM_DATATYPES:VEC:contains(_values:A) {
                     set _workingValue to _DSKY_READ_VECTOR(_workingValue, _workingFormat).
                 }
+                // unit conversion!
+
+                // versions pertaining to future of 10/12/23 will store all _CORE_MEMORY data in metric units, this is to make my (and probably anyone insane enough to develop extra programs for this shoddy thing) lives easier
+                // it also makes some display operations easier if im honest
+
+                IF _MEM_DATATYPES:LENGTHS:contains(_values:A) {
+                    // what are we wanting to display?
+
+                    // we should assume that the _CORE_MEMORY stores its data in metric units, a sin for an AGC i know but its easier for me who is writing this in 2023 not 1963
+
+                    IF _addressingInfo[i]:haskey("dispIN") {
+                        // this has a different display input than its _CORE_MEMORY is stored in
+
+                        // Assume that, and this is also a point of note for potential future updates to this emulation software, the following is true:
+                        // 1. Assuming things in data units when you dont really know what you're doing is a bad idea
+                        // 2. that all units given to _CORE_MEMORY are in metric 
+                        // 3. the LVDC used metric (SATURN V LAUNCH VEHICLE GUIDANCE EQUATIONS SA-504 (apollo 9) states such)
+                        // 4. the USA did NOT use metric to land on the moon
+                        // 5. due to shoddy humour and assumption 4 is true, checkmate liberal
+                        // and on that bombshell, back to the code
+                        set _workingValue to convertUnit("me", _addressingInfo[i]:dispIN, _workingValue).
+                    }
+                }
+
 
                 IF _workingValue:istype("String") {
                     set _workingValue to _workingValue:tonumber.
@@ -966,6 +990,9 @@ LOCAL FUNCTION DSKY_READ_WRITE {
                     }
                     
                     set _workingValue to _workingValue*10^_dp.
+                    set _workingValue to ROUND(_workingValue).
+                } ELSE {
+                    // we need to set the values to a number that actually works here
                     set _workingValue to ROUND(_workingValue).
                 }
 
@@ -1122,52 +1149,81 @@ LOCAL FUNCTION DSKY_READ_WRITE {
         local _inputAddress is "".
         local _inputFormat is "".
         local _inputString is "".
+
+        // Modification from old versions: 
+        // the definition of _inputR1, 2 and 3 are moved up here, mostly unused but at the same time it helps me down at the unit conversion section
+
+        local _inputR1 is _DSKYdisplayREG:R1.
+        local _formatR1 is _addressingInfo:R1:F.
+        local _addressR1 is _addressingInfo:R1:A.
+        local _inputR2 is _DSKYdisplayREG:R2.
+        local _formatR2 is _addressingInfo:R2:F.
+        local _addressR2 is _addressingInfo:R2:A.
+        local _inputR3 is _DSKYdisplayREG:R3.
+        local _formatR3 is _addressingInfo:R3:F.
+        local _addressR3 is _addressingInfo:R3:A.
+
+
+
+        // And now we must convert that thing (the unit) back to where it came from 
+        // (or so help me)
+        // (this is what this code does, helps me)
+
+        // "READ" includes its own FOR loop to help with unit conversion, its already in a for loop so thereFORe we shall create one here too
+
+        // step 1 - unit conversion!
+
+        local _originalInput is "".
+        local _modifiedInput is "".
+
+        FOR i in _addressingInfo:keys {
+            IF i = "R1" {
+                set _originalInput to _inputR1.
+            } ELSE IF i = "R2" {
+                set _originalInput to _inputR2.
+            } ELSE IF i = "R3" {
+                set _originalInput to _inputR3.
+            }
+            IF _addressingInfo[i]:haskey("dispIN") {
+                // yes, it does
+                local _inputIsGivenInUnitsOf is _addressingInfo[i]:dispIN.
+                local _outputNeedstoBeIn is "".
+                IF _MEM_DATATYPES:LENGTHS:contains(_addressingInfo[i]:A) {
+                    // its a length, convert to meters
+                    set _outputNeedstoBeIn to "me".
+                    
+                } ELSE IF _MEM_DATATYPES:WEIGHTS:contains(_addressingInfo[i]:A) {
+                    set _outputNeedstoBeIn to "t".
+                }
+                set _modifiedInput to convertUnit(_inputIsGivenInUnitsOf, _outputNeedstoBeIn, _originalInput).
+            } ELSE {
+                // no it does not we dont really need to do much here i dont think
+                set _modifiedInput to _originalInput. // actually we will do this for sanitys sake
+            }
+            IF i = "R1" {
+                set _inputR1 to _modifiedInput.
+            } ELSE IF i = "R2" {
+                set _inputR2 to _modifiedInput.
+            } ELSE IF i = "R3" {
+                set _inputR3 to _modifiedInput.
+            }
+        }
+
         IF _vrb = "21" {
-            set _inputFormat to _addressingInfo:R1:F.
-            set _inputAddress to _addressingInfo:R1:A.
-
-            set _inputString to _DSKYdisplayREG:R1.
-            PUSH_2_MEM(_inputString, _inputFormat, _inputAddress).
+            PUSH_2_MEM(_inputR1, _formatR1, _addressR1).
         } ELSE IF _vrb = "22" {
-            set _inputFormat to _addressingInfo:R2:F.
-            set _inputAddress to _addressingInfo:R2:A.
-
-            set _inputString to _DSKYdisplayREG:R2.
-            PUSH_2_MEM(_inputString, _inputFormat, _inputAddress).
+            PUSH_2_MEM(_inputR2, _formatR2, _addressR2).
         } ELSE IF _vrb = "23" {
-            set _inputFormat to _addressingInfo:R3:F.
-            set _inputAddress to _addressingInfo:R3:A.
-
-            set _inputString to _DSKYdisplayREG:R3.
-            PUSH_2_MEM(_inputString, _inputFormat, _inputAddress).
+            PUSH_2_MEM(_inputR3, _formatR3, _addressR3).
         } ELSE IF _vrb = "24" {
             // here we dont really care if the 
-            local _inputR1 is _DSKYdisplayREG:R1.
-            local _formatR1 is _addressingInfo:R1:F.
-            local _addressR1 is _addressingInfo:R1:A.
-
-            local _inputR2 is _DSKYdisplayREG:R2.
-            local _formatR2 is _addressingInfo:R2:F.
-            local _addressR2 is _addressingInfo:R2:A.
             PUSH_2_MEM(_inputR1, _formatR1, _addressR1).
             PUSH_2_MEM(_inputR2, _formatR2, _addressR2).
         } ELSE IF _vrb = "25" {
-            local _inputR1 is _DSKYdisplayREG:R1.
-            local _formatR1 is _addressingInfo:R1:F.
-            local _addressR1 is _addressingInfo:R1:A.
-
-            local _inputR2 is _DSKYdisplayREG:R2.
-            local _formatR2 is _addressingInfo:R2:F.
-            local _addressR2 is _addressingInfo:R2:A.
-
-            local _inputR3 is _DSKYdisplayREG:R3.
-            local _formatR3 is _addressingInfo:R3:F.
-            local _addressR3 is _addressingInfo:R3:A.
             PUSH_2_MEM(_inputR1, _formatR1, _addressR1).
             PUSH_2_MEM(_inputR2, _formatR2, _addressR2).
             PUSH_2_MEM(_inputR3, _formatR3, _addressR3).
         }
-        print "reseting".
         set _DSKY_STATE:INPUT_MODE to "NONE".
         set _DSKYdisplayREG:VERB to _DSKYdisplayREG:LAST_VERB.
     }
@@ -1175,7 +1231,7 @@ LOCAL FUNCTION DSKY_READ_WRITE {
 
 LOCAL FUNCTION PUSH_2_MEM {
     parameter var is "", form is "", addr is "".
-
+    local _originalValue is var. // for when we do times, it makes it easier, trust me here
     // variable, format, address
     local _dp is 0.
     IF form:contains(".") {
@@ -1183,6 +1239,138 @@ LOCAL FUNCTION PUSH_2_MEM {
     }
     set _outputScalar to var:tonumber*10^(-_dp).
 
+
+    // BUT WE'RE NOT DONE YET! 
+
+    // handling for special formats like vectors and times must be accounted for!
+
+    // it is with times of which i realise why the checklist requests the astronauts to modifiy times using V25
+
+    // vectors are simple however
+
+    IF _MEM_DATATYPES:VEC:contains(addr) {
+        // this is a vector
+        // what do we modify here
+        local _prev is _CORE_MEMORY[addr].
+        IF form:startswith("A") {
+            // we are modifying the X part of the vector
+            set _prev:X to _outputScalar.
+        } ELSE IF form:startswith("B") {
+            // Y part of the vector
+            set _prev:Y to _outputScalar.
+        } ELSE IF form:startswith("C") {
+            set _prev:Z to _outputScalar.
+        }
+        set _outputScalar to _prev.
+        // and thats vectors, literally all we do here
+    } ELSE IF _MEM_DATATYPES:TIME:contains(addr) {
+        // oh boy look what you've done to yourself here
+        // i warn the reader, the next few lines are probably going to hurt your brain and eyes
+
+        // setup some flags so we know what we are modifying here
+        local _modifH is false.
+        local _modifM is false.
+        local _modifS is false.
+
+        local _prev is _CORE_MEMORY[addr].
+        local _prevH is 0.
+        local _prevM is 0.
+        local _prevS is 0.
+
+        local _newTime is 0.
+        local _newHours is 0.
+        local _newMinutes is 0.
+        local _newSeconds is 0.
+
+        // setup the previous values
+
+        IF NOT(_prev:istype("timespan")) {
+            set _prev to timespan(prev).
+        }
+        // in practice, all of these actually should equal what we were given, but for ease of use i will force the code to use HOURS for the first format
+        set _prevH to FLOOR(_prevH:hours).
+        set _prevM to _prev:minute.
+        set _prevS to _prev:second.
+
+
+
+
+        local _inp is 0.
+        local _inpH is "".
+        local _inpM is "".
+        local _inpS is "".
+        // Im unsure if you can modify those with MMbSS however i will allow such cases to ensure that it can be done incase someone decides it needs to be done for a program created for this agc
+
+        // okay, so thats that began
+
+        // now we need to integrate the input values
+
+        set _inp to _originalValue. // do this as a string to ensure that it actually conforms to the format
+        // now where do we begin?
+        // considering that formats are all 5 or 6 characters long and that scalars are 
+        local formIndxr is 0.
+        local lastModif is "M".
+        FOR i in form {
+            IF i = "H" {
+                set _inpH to _inpH+_inp[formIndxr].
+                set lastModif to "H".
+                set _modifH to true.
+            } ELSE IF i = "M" {
+                set _inpM to _inpM+_inp[formIndxr].
+                set lastModif to "M".
+                set _modifM to true.
+            } ELSE IF i = "S" {
+                set _inpS to _inpS+_inp[formIndxr].
+                set lastModif to "S".
+                set _modifS to true.
+            } ELSE IF i = "." {
+                IF lastModif = "H" {
+                    set _inpH to _impH+".".
+                } ELSE IF lastModif = "M" {
+                    set _inpM to _inpM+".".
+                } ELSE IF lastModif = "S" {
+                    set _inpS to _inpS+".".
+                }
+            }
+            set formIndxr to formIndxr+1.
+        }
+
+        // now we can setup the values properly
+
+        // convert these into numbers
+
+        set _inpH to _inpH:tonumber(0).
+        set _inpM to _inpM:tonumber(0).
+        set _inpS to _inpS:tonumber(0).
+
+        IF _modifH {
+            set _newHours to _inpH.
+        } ELSE {
+            set _newHours to _prevH.
+        }
+        IF _modifM {
+            set _newMinutes to _inpM.
+        } ELSE {
+            set _newMinutes to _prevM.
+        }
+        IF _modifS {
+            set _newSeconds to _inpS.
+        } ELSE {
+            set _newSeconds to _prevS.
+        }
+
+        // now we integrate
+
+        set _newHours to _newHours*3600.
+        set _newMinutes to _newMinutes*60.
+        set _newSeconds to _newSeconds*1. // sanity check
+
+        set _newTime to _newHours+_newMinutes+_newSeconds.
+
+        set _outputScalar to _newTime.
+
+
+    }
 
     IF _CORE_MEMORY:haskey(addr) {
         set _CORE_MEMORY[addr] to _outputScalar.
@@ -1217,140 +1405,182 @@ LOCAL FUNCTION _INTERPRET {
     return lexicon("VERB", _rVERB, "NOUN", _rNOUN, "FLASH", _rFLASH).
 }
 
+
+
 LOCAL FUNCTION _DSKY_TIMEDECONSTRUCTOR {
+    // function to help development
     parameter tValue is time:seconds, tFormat is "MMbSS", ignoremaximums is false.
-    print "ignoring maximums: " + ignoremaximums.
-    local _returnDisp is "".
+
+    local _vTS is 0.
+
+    // as timespan
+
+    // general method
+    // get the timestamp of the value
+
     IF tValue:istype("String") { set tValue to tValue:tonumber. }
-    ELSE IF tValue:istype("TimeSpan") { set tValue to tValue:seconds. }
-    // FIRST ATTEMPT I WILL TRY AND DETERMINE IGNOREMAXIMUMS AUTOMATICALLY BY DETERMINING IF WE HAVE A "BLANK"
-    // H - Hours
-    // M - Minutes
-    // S - Seconds
-    // b - blank (input a zero)
+    IF NOT(tValue:istype("timespan")) { set tValue to timespan(tValue). }
 
-    // If we ignore maximums we will ignore the highest value allowable under normal circumstances
-    // For example, if we have MMbSS we will ignore the maximum allowed number of minutes on a clock (60) for the minutes, and so on with seconds and hours (days werent supported on the AGC)
-    // it is mentioned that if i decide to use this section of code, if you, the technically minded nerdy user wanted to create your own display with a time you would have to include your address name under "TIME" in the variable called _MEM_DATATYPES
-    // _MEM_DATATYPES will ALWAYS assume that the number is a decimal unless told otherwise (DAPDATR1 and DAPDATR2 are octal components)
-    // this will also have to be reversed when writing new time data, but that is a different kettle of fish and will be easier when i can display and know how i display because then we just do that in reverse
+    set _vTS to tValue.
 
-    // TIME datatypes should also use the following dummy addresses to display 
+    // we have the timestamp, now we create the following values for the possible variables we could impliment
 
-    local _asSpan is tValue.
+    local _valHOURS is _vTS:hours.
+    local _valHOUR is _vTS:hour.
+    local _valMINUTES is _vTS:minutes.
+    local _valMINUTE is _vTS:minute.
+    local _valSECONDS is _vTS:seconds.
+    local _valSECOND is _vTS:second.
+    local _valCENTISECONDS is abs(FLOOR(_vTS:seconds)-_vTS:seconds). // with only the decimal place
 
-    IF NOT(_asSpan:istype("TimeSpan")) { set _asSpan to timespan(_asSpan). }
+    local highestValue is "N".
+    local hasH is 0.
+    local hasM is 0.
+    local hasS is 0.
+    local hasDECIMAL is false.
 
-    local _hh is _asSpan:HOURS.
-    local _mm is _asSpan:MINUTES.
-    local _ss is _asSpan:SECONDS.
-    print _hh.
-    print _mm.
-    print _ss.
-    local _centiseconds is abs(FLOOR(tValue)-tValue). // should give a number between 0 and 1
-    // according to the documentation i have hrs always ignores the maximum value
-
-    // maximum value per row is 9 (1*10^rows-1)
-
-    // start by going through the format string to find how many occourances of H, M and S (before a decimal point) we have to determine the maximum value
-    // decimal point values will just be appended to seconds if we find any
-    local _maxHH is 0.
-    local _maxMM is 0.
-    local _maxSS is 0.
-    local _largestDisplayValue is "HH".
     FOR i in tFormat {
+        IF (i = "H" or i = "M" or i = "S") {
+            IF i = "H" and not(hasH) {
+                set hasH to 1.
+                set highestValue to "H".
+            } ELSE IF i = "M" and not(hasM) {
+                set hasM to 1.
+                IF NOT(highestValue = "H") { set highestValue to "M". }
+            } ELSE IF i = "S" and not(hasS) {
+                set hasS to 1.
+                IF NOT(highestValue = "M" or highestValue = "H") { set highestValue to "S". }
+            }
+        }
+        IF i = "." and not(hasDECIMAL) { set hasDECIMAL to true. }
+    }
+
+    IF hasH+hasM+hasS > 1 {
+        // there are two values here
+        set ignoremaximums to true.
+    }
+
+    // we can safely assume to ignore our maximum values on our largest value unless already specified
+
+    // general rule to be enforced
+    // highest value in the format will ignore maximums, other values will not
+
+    local _rH is 0.
+    local _rM is 0.
+    local _rS is 0.
+
+    IF ignoreMaximums {
+        IF highestValue = "H" { 
+            set _rH to FLOOR(_valHOURS).
+            set _rM to _valMINUTE.
+            set _rS to _valSECOND.
+        } // no agc component needs a decimal for hours or minutes
+        ELSE IF highestValue = "M" {
+            set _rM to FLOOR(_valMINUTES).
+            set _rS to _valSECOND.
+        } ELSE IF highestValue = "S" {
+            set _rS to _valSECOND. // we will sortout centiseconds in a moment
+        }
+    } ELSE {
+        set _rH to _valHOUR.
+        set _rM to _valMINUTE.
+        set _rS to _valSECOND.
+    }
+
+    // second pass through the format determines the following:
+    // how long each segment needs to be
+    // how i integrate the string
+    // how long each segment of the string must be
+
+    // for example
+    // MMbSS.SS
+    // will return a lexicon with the following keys with the values shown
+    //
+    // key: integration
+    // value: LIST("M", "b", "S")  - CS for centiseconds though that doesnt matter with my better implimentation of reading the core memory
+    //
+    // key: lengths - note it is not length because lexicon already contains a length suffix
+    // value: is another lexicon containing H M and S with the key of these values being the length required of the string
+    //
+    // key: max value
+    // a lexicon containing the maximum allowable number in the value
+
+    local _integrationInformation is lexicon(
+        "integration", list(),
+        "lengths", lexicon("h", 0, "m", 0, "s", 0),
+        "maxValue", lexicon("h", 999999, "m", 99999, "s", 99999)
+    ).
+
+
+
+    FOR i in tFormat {
+        IF (i = "H" or i = "M") or (i = "b" or i = "s") {
+            IF NOT(_integrationInformation:integration:contains(i)) or i = "b" { _integrationInformation:integration:add(i). }
+            IF _integrationInformation:lengths:haskey(i) {
+                IF i = "H" {
+                    set _integrationInformation:lengths:h to _integrationInformation:lengths:h+1.
+                } ELSE IF i = "M" {
+                    set _integrationInformation:lengths:m to _integrationInformation:lengths:m+1.
+                } ELSE IF i = "S" {
+                    set _integrationInformation:lengths:s to _integrationInformation:lengths:s+1.
+                }
+                
+            }
+        } ELSE IF i = "." { break. }
+    }
+    // setup the maxvalue
+
+    set _integrationInformation:maxvalue:h to (1*10^_integrationInformation:lengths:h)-1.
+    set _integrationInformation:maxvalue:m to (1*10^_integrationInformation:lengths:m)-1.
+    set _integrationInformation:maxvalue:s to (1*10^_integrationInformation:lengths:s)-1.
+    set _rH to min(_rH, _integrationInformation:maxvalue:h).
+    set _rM to min(_rM, _integrationInformation:maxvalue:m).
+    set _rS to min(_rS, _integrationInformation:maxvalue:s).
+    // check that our values arent greater than what is allowed
+
+    set _rH to _rH:tostring.
+    set _rM to _rM:tostring.
+    set _rS to _rS:tostring.
+
+    local _inputvalues is lexicon("h", _rH, "m", _rM, "s", _rS).
+    local _outputValues is lexicon("h", "", "m", "", "s", "").
+
+    FOR i in _inputValues:keys {
+        local _val is _inputValues[i].
+        local _requiredLength is _integrationInformation:lengths[i].
+        local _requiredPadding is _requiredLength-_val:length.
+        IF _requiredPadding = 1 {
+            set _outputValues[i] to "0"+_val.
+        } ELSE IF _requiredPadding = 2 {
+            set _outputValues[i] to "00"+_val.
+        } ELSE IF _requiredPadding = 3 {
+            set _outputValues[i] to "000"+_val.
+        } ELSE IF _requiredPadding = 4 {
+            set _outputValues[i] to "000"+_val.
+        } ELSE IF _requiredPadding = 5 {
+            set _outputValues[i] to "00000"+_val.
+        } ELSE {
+            set _outputValues[i] to _val.
+        }
+    }
+    IF NOT(_outputValues:s = "") {
+        set _outputValues:s to _outputValues:s:tonumber.
+        set _outputValues:s to _outputValues:s+_valCENTISECONDS.
+        set _outputValues:s to _outputValues:s:tostring.
+    }
+
+    // integrate into the final string
+    local _outputString is "".
+    FOR i in _integrationInformation:integration {
         IF i = "H" {
-            set _maxHH to _maxHH+1.
-        } ELSE IF i = "M" { set _maxMM to _maxMM+1. }
-        ELSE IF i = "S" { set _maxSS to _maxSS+1. }
-        ELSE IF i = "." { break. } // stop right here partner, thats a decimal point
+            set _outputString to _outputString+_outputValues:H.
+        } ELSE IF i = "M" { set _outputString to _outputString+_outputValues:M. }
+        ELSE IF i = "S" { set _outputString to _outputString+_outputValues:S. }
+        //ELSE IF i = "b" { set _outputString to _outputString+"0".}
     }
-    
-    set _maxHH to max(0, (1*10^_maxHH)-1).
-    set _maxMM to max(0, (1*10^_maxMM)-1).
-    set _maxSS to max(0, (1*10^_maxSS)-1).
-    // this still works 
-    IF _maxHH > 0 and tFormat:contains("H") {
-        set _largestDisplayValue to "HH".
-        set _maxMM to 59.
-        set _maxSS to 59.
-        // ensure the minutes and seconds are set correctly
-        set _mm to _asSpan:MINUTE.
-        set _ss to _asSpan:SECOND.
-    } ELSE IF _maxMM > 0 and tFormat:contains("M") {
-        set _largestDisplayValue to "MM".
-        set _maxSS to 59.
-        IF NOT(ignoremaximums) { set _maxMM to 59. }
-        set _ss to _asSpan:SECOND.
-    } ELSE {
-        set _largestDisplayValue to "SS".
-        set _ss to _asSpan:SECOND.
-    }
-    print _largestDisplayValue.
-    IF NOT(ignoreMaximums) {
-        // TODO: RO COMPATABILITY CHECK, SET HOMEWORLD VARIABLE
-        set _maxHH to timespan(ROUND(Kerbin:rotationperiod)):HOURS.
-        set _maxMM to 59.
-        set _maxSS to 59.
-    }
-    IF NOT(ignoremaximums) and _largestDisplayValue = "HH" { set _hh to FLOOR(min(_hh, _maxHH)). }
-    ELSE { set _hh to FLOOR(min(_hh, _maxHH)). }
-    IF NOT(ignoremaximums) and _largestDisplayValue = "MM" { set _mm to FLOOR(min(_mm, _maxMM)). }
-    ELSE { set _mm to FLOOR(min(_mm, _maxMM)). }
-    IF NOT(ignoremaximums) and _largestDisplayValue = "SS" { set _ss to FLOOR(min(_ss, _maxSS)). }
-    ELSE { set _ss to FLOOR(min(_ss, _maxSS)). }
+    IF AG1 { print "Output: " + _outputString. }
+    return _outputString.
 
-    IF ignoremaximums {
-        IF _largestDisplayValue = "HH" {
-            set _mm to FLOOR(min(_mm, _maxMM)).
-        } ELSE IF _largestDisplayValue = "MM" {
-            set _ss to FLOOR(min(_ss, _maxSS)).
-        }
-    } ELSE {
-        set _hh to FLOOR(min(_hh, _maxHH)).
-        set _mm to FLOOR(min(_mm, _maxMM)).
-        set _ss to FLOOR(min(_ss, _maxSS)).
-    }
-    print _mm.
-
-    set _hh to _hh:tostring.
-    set _mm to _mm:tostring.
-    set _ss to _ss:tostring.
-    set _ss to _ss.
-    // 2 variables so i can switch between them
-    local _indxH is 0.
-    local _indxM is 0.
-    local _indxS is 0.
-
-    local _indxr is 0.
-    local i is "".
-    FOR itm in tFormat {
-        set i to tFormat[_indxr].
-        IF i = "." {
-            break.
-        }
-        ELSE IF i = "H" AND NOT(_hh:length-1 < _indxH) {
-            set _returnDisp to _returnDisp+_hh[_indxH].
-            set _indxH to _indxH+1.
-        } ELSE IF i = "M" AND NOT(_mm:length-1 < _indxM) {
-            set _returnDisp to _returnDisp+_mm[_indxM].
-            set _indxM to _indxM+1.
-        } ELSE IF i = "S" AND NOT(_ss:length-1 < _indxS) {
-            set _returnDisp to _returnDisp+_ss[_indxS].
-            set _indxS to _indxS+1.
-        } ELSE IF i = "0" {
-            set _returnDisp to _returnDisp+"0".
-        }
-        set _indxr to min(_indxr+1, tFormat:length-1).
-    }
-    IF tFormat:endswith("S") and tFormat:contains(".") {
-        set _returnDisp to _returnDisp:tonumber.
-        set _returnDisp to _returnDisp+_centiseconds.
-        set _returnDisp to _returnDisp:tostring.
-    }
-    print _returnDisp.
-
-    return _returnDisp.
 }
 
 LOCAL FUNCTION _DSKY_VALIDATE_OCTAL {

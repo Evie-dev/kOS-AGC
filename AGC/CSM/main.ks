@@ -61,6 +61,7 @@ FUNCTION _AGC_INIT {
     // load the common functions
 
     runOncePath("0:/Common/common.ks").
+    runOncePath("0:/Common/unitConversion.ks").
 
     set _CORE_MEMORY:TIME0 TO TIME:SECONDS.
 }
@@ -82,6 +83,7 @@ FUNCTION _AGC_MAINLOOP {
 FUNCTION _AGC_MAIN_UPDATE {
     // update time variables
     _AGC_UPDATER_CLOCK().
+    _AGC_UPDATE_STATE_VECTOR(). // updates the state vector of the spacecraft
     // Check for new routines
     IF _AGC_INPUTQUEUE:length-1 >= ROUTINE_INDEXER AND _DSKY_STATE:PRO {
         
@@ -190,6 +192,11 @@ FUNCTION _AGC_MAIN_UPDATE {
     
 }
 
+LOCAL FUNCTION _AGC_UPDATE_STATE_VECTOR {
+    set _CORE_MEMORY:V to ship:velocity:orbit.
+    set _CORE_MEMORY:R to ship:body:position.
+}
+
 LOCAL FUNCTION _AGC_UPDATER_CLOCK {
     local _t1 is TIMESPAN(TIME:SECONDS- _CORE_MEMORY:TIME0).
     set _CORE_MEMORY:TIME2 to _t1.
@@ -219,6 +226,14 @@ LOCAL FUNCTION _AGC_SERVICER_UPDATE {
 FUNCTION ADD_STEP {
     parameter stepName is "".
     _AGC_INPUTQUEUE:add(stepName).
+}
+
+FUNCTION INSERT_STEP {
+    parameter stepName is "", stepsFromNow is 0.
+    local _currentIndex is ROUTINE_INDEXER.
+    set stepsFromNow to stepsFromNow+1.
+    print "step inserted".
+    _AGC_INPUTQUEUE:insert(min(_currentIndex+stepsFromNow, _AGC_INPUTQUEUE:LENGTH-1), stepName).
 }
 
 FUNCTION _DAP_GETVECHMASS {
