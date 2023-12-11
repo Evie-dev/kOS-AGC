@@ -566,8 +566,8 @@ FUNCTION stateVectorIntegration {
 
     local nu is arcCos(vdot(r_vec/_r, e_vec/_e)).
 
-    local rP is (_h^2/_mu)-(1/1+_e).
-    local rA is (_h^2/_mu)-(1/1-_e). // these should be the radius i think
+    local rA is (_h^2/_mu)*(1/1+_e).
+    local rP is (_h^2/_mu)*(1/1-_e). // these should be the radius i think
     local _a is (rP+rA)/2.
     return lexicon(
         "Apoapsis", lexicon("r", rA, "a", rA-_rad),

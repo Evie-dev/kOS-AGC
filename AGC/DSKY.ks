@@ -706,7 +706,7 @@ LOCAL FUNCTION DSKY_ENTER {
     ELSE IF _VERB = "21" {
         // load component 1 into r1
         // which input mode are we currently in? 
-
+        set _canResetInputMode to false.
         IF NOT(_INPUT_MODE = "R1") {
             // we are currently not modifying this register, therefore we should clear it and then change the mode
             set _DSKYdisplayREG:R1 to "".
@@ -1033,16 +1033,7 @@ LOCAL FUNCTION DSKY_READ_WRITE {
                 }
                 set vString to _postpad+vString.
 
-                IF _workingFormat:contains("b") {
-                    // add a zero at the location of "b"
-
-                    // start by removing the first zero
-
-                    local _tString2 is vString:remove(0,1).
-                    set vString to _tString2.
-                    local _tString3 is vString:insert(_workingFormat:find("b"), "0").
-                    set vString to _tString3.
-                }
+                // blank handling removed from display due to causing errors
 
 
                 IF _neg {
@@ -1184,6 +1175,9 @@ LOCAL FUNCTION DSKY_READ_WRITE {
             } ELSE IF i = "R3" {
                 set _originalInput to _inputR3.
             }
+            IF _originalInput:istype("String") {
+                set _originalInput to _originalInput:toscalar(0).
+            }
             IF _addressingInfo[i]:haskey("dispIN") {
                 // yes, it does
                 local _inputIsGivenInUnitsOf is _addressingInfo[i]:dispIN.
@@ -1237,7 +1231,12 @@ LOCAL FUNCTION PUSH_2_MEM {
     IF form:contains(".") {
         set _dp to (form:length-1)-form:FIND(".").
     }
-    set _outputScalar to var:tonumber*10^(-_dp).
+    IF NOT(var:istype("Scalar")) {
+        set _outputScalar to var:tonumber*10^(-_dp).
+    } ELSE {
+        set _outputScalar to var*10^(-_dp).
+    }
+    
 
 
     // BUT WE'RE NOT DONE YET! 
@@ -1507,7 +1506,7 @@ LOCAL FUNCTION _DSKY_TIMEDECONSTRUCTOR {
 
     local _integrationInformation is lexicon(
         "integration", list(),
-        "lengths", lexicon("h", 0, "m", 0, "s", 0),
+        "lengths", lexicon("h", 0, "m", 0, "s", 0, "b", 0),
         "maxValue", lexicon("h", 999999, "m", 99999, "s", 99999)
     ).
 
@@ -1523,6 +1522,8 @@ LOCAL FUNCTION _DSKY_TIMEDECONSTRUCTOR {
                     set _integrationInformation:lengths:m to _integrationInformation:lengths:m+1.
                 } ELSE IF i = "S" {
                     set _integrationInformation:lengths:s to _integrationInformation:lengths:s+1.
+                } ELSE IF i = "b" {
+                    set _integrationInformation:lengths:b to _integrationInformation:lengths:b+1.
                 }
                 
             }
@@ -1538,9 +1539,14 @@ LOCAL FUNCTION _DSKY_TIMEDECONSTRUCTOR {
     set _rS to min(_rS, _integrationInformation:maxvalue:s).
     // check that our values arent greater than what is allowed
 
+
     set _rH to _rH:tostring.
     set _rM to _rM:tostring.
     set _rS to _rS:tostring.
+
+    IF _rS:toscalar(10) < 10 {
+        set _integrationInformation:lengths:b to _integrationInformation:lengths:b+1.
+    }
 
     local _inputvalues is lexicon("h", _rH, "m", _rM, "s", _rS).
     local _outputValues is lexicon("h", "", "m", "", "s", "").
@@ -1548,7 +1554,7 @@ LOCAL FUNCTION _DSKY_TIMEDECONSTRUCTOR {
     FOR i in _inputValues:keys {
         local _val is _inputValues[i].
         local _requiredLength is _integrationInformation:lengths[i].
-        local _requiredPadding is _requiredLength-_val:length.
+        local _requiredPadding is (_requiredLength-_val:length)-_integrationInformation:lengths:b.
         IF _requiredPadding = 1 {
             set _outputValues[i] to "0"+_val.
         } ELSE IF _requiredPadding = 2 {
@@ -1575,8 +1581,14 @@ LOCAL FUNCTION _DSKY_TIMEDECONSTRUCTOR {
         IF i = "H" {
             set _outputString to _outputString+_outputValues:H.
         } ELSE IF i = "M" { set _outputString to _outputString+_outputValues:M. }
-        ELSE IF i = "S" { set _outputString to _outputString+_outputValues:S. }
-        //ELSE IF i = "b" { set _outputString to _outputString+"0".}
+        ELSE IF i = "S" { 
+            // is "S" < 10?
+            IF _outputValues:S:toscalar(10) < 10 {
+                set _outputString to _outputString+"0"+_outputValues:S.
+            }
+            ELSE { set _outputString to _outputString+_outputValues:S. }
+        }
+        ELSE IF i = "b" { set _outputString to _outputString+"0".} // re added blank handling here because say we wanted 50b30 it would display as 05030 rather than 50030
     }
     IF AG1 { print "Output: " + _outputString. }
     return _outputString.
@@ -1638,8 +1650,12 @@ FUNCTION EXT_DSKY_GCDISPLAYREQ {
 
     // check to see which combination we are displaying currently, if these two match or if we are currently keyed to V00N00 we will allow the data to be displayed, otherwise we will activate the KEYREL button
     IF NOT(_orig = "BLANK REGISTERS") and (NOT(_PRO_OVERRIDE) and (NOT(_DSKY_STATE:INHB:INP = _orig or _DSKY_STATE:INHB:INP = "V00N00") and NOT(_DSKY_STATE:STACK:CONTAINS(_orig)))) {
-        _DSKY_STATE:STACK:ADD(_orig).
-        set _DSKYdisplayREG:KEYREL to true.
+        // if the verb doesnt equal 99 we set keyrel flag
+        IF NOT(_DSKYdisplayREG:VERB = "99") {
+            _DSKY_STATE:STACK:ADD(_orig).
+            set _DSKYdisplayREG:KEYREL to true.
+        }
+        
     } ELSE IF NOT(_orig = "BLANK_REGISTERS") {
         // display the combination by just setting the registers (they will update in the next cycle so its okay)
         // actually dont do this because uh, it may cause problems when this updates every cycle

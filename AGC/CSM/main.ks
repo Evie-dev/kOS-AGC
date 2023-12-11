@@ -85,6 +85,7 @@ FUNCTION _AGC_MAIN_UPDATE {
     // update time variables
     _AGC_UPDATER_CLOCK().
     _AGC_UPDATE_STATE_VECTOR(). // updates the state vector of the spacecraft
+    _AGC_UPDATE_CONTROL_FLAGS().
     // Check for new routines
     IF _AGC_INPUTQUEUE:length-1 >= ROUTINE_INDEXER AND _DSKY_STATE:PRO {
         
@@ -94,10 +95,11 @@ FUNCTION _AGC_MAIN_UPDATE {
         set _AGC:currentRoutineStep to _request.
         local _procededVERB is _DSKYdisplayREG:VERB.
         local _procededNOUN is _DSKYdisplayREG:NOUN.
-
+        
         IF _procededVERB = "99" {
             // set engine to ENABLE
             set _AGC:PERMIT:ENGINE to true.
+            set _DSKYdisplayREG:VERB to _DSKYdisplayREG:LAST_VERB.
         } ELSE IF _procededVERB = "50" {
             // please perform (something)
             IF _procededNOUN = "18" {
@@ -141,7 +143,7 @@ FUNCTION _AGC_MAIN_UPDATE {
 
             set _rqstVerb to _request[1].
             set _rqstVerb to _rqstVerb+_request[2].
-            local _rqst is "V" + _rqstVerb + "N00".
+            local _rqst is "V" + _rqstVerb + "N" + _DSKYdisplayREG:NOUN.
             EXT_DSKY_GCDISPLAYREQ(_rqst,true).
         } 
         ELSE IF _request = "TERM" {
@@ -163,10 +165,18 @@ FUNCTION _AGC_MAIN_UPDATE {
         // routine has ended
 
         // do the finish routine function
-
+        local _doneStep is "0".
+        IF NOT _AGC_INPUTQUEUE:EMPTY {
+            set _doneStep to _AGC_INPUTQUEUE[ROUTINE_INDEXER].
+        }
+        print "Completed step " + _doneStep.
         set ROUTINE_INDEXER TO MAX(MIN(ROUTINE_INDEXER+1, _AGC_INPUTQUEUE:LENGTH), 0).
         set _DSKY_STATE:PRO TO FALSE.
-
+        IF (_doneStep:startswith("R") or _doneStep:startswith("P")) or (_doneStep = "TERM" and NOT(ROUTINE_INDEXER = _AGC_INPUTQUEUE:length-2)) {
+            // reset pro flag?
+            print "auto proceding!".
+            set _DSKY_STATE:PRO TO TRUE.
+        }
         IF _AGC_INPUTQUEUE:LENGTH = ROUTINE_INDEXER {
             // clear the input queue to save on ram
             _AGC_INPUTQUEUE:CLEAR.
@@ -210,6 +220,17 @@ LOCAL FUNCTION _AGC_UPDATER_CLOCK {
     set _CORE_MEMORY:TTOGO to TIMESPAN(ttogo).
 }
 
+LOCAL FUNCTION _AGC_UPDATE_CONTROL_FLAGS {
+    IF NOT(_AGC:PERMIT:AUTOMNV) and steeringManager:enabled {
+        unlock steering.
+    } ELSE IF _AGC:PERMIT:AUTOMNV {
+        IF NOT(steeringManager:target = _CORE_MEMORY:THETAD) { lock steering to _CORE_MEMORY:THETAD. }
+    }
+    IF NOT(_AGC:PERMIT:ENGINE) {
+        unlock throttle.
+    }
+}
+
 LOCAL FUNCTION _AGC_UPDATER_SERVICER {
     
 }
@@ -226,6 +247,7 @@ LOCAL FUNCTION _AGC_SERVICER_UPDATE {
 
 FUNCTION ADD_STEP {
     parameter stepName is "".
+    print "added step " + stepName.
     _AGC_INPUTQUEUE:add(stepName).
 }
 

@@ -12,8 +12,10 @@ FUNCTION P30_INIT {
     set proCount to _DSKY_STATE:INPUTS:PRO+2. // this will be the number of times procede has been pressed when we can start calculating resultant orbit data for the given information
     // P30 begins by setting up two displays
     set _UPDLOOP_POINTER_VAR to P30_VARUPDT@.
+    
     ADD_STEP("FLV06N33").
     ADD_STEP("FLV06N81").
+    
 }
 
 LOCAL FUNCTION P30_VARUPDT {
@@ -41,7 +43,7 @@ LOCAL FUNCTION P30_VARUPDT {
         set _CORE_MEMORY:HAPO to _futurorbinfo:apoapsis:a.
         set _CORE_MEMORY:HPER to _futurorbinfo:periapsis:a.
         set _CORE_MEMORY:VGDISP to _CORE_MEMORY:DVTOTAL-_vtig:mag.
-
+        
         ADD_STEP("FLV06N42").
         ADD_STEP("FLV16N45").
         ADD_STEP("P00").
