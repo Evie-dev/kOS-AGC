@@ -1,2 +1,2 @@
 # kOS-AGC
-Apollo Guidance Computer Emulation in kOS
+Apollo Guidance Computer Implimentation in kOS
