@@ -7,7 +7,9 @@ GLOBAL _CORE_MEMORY is LEXICON(
     "V", v(0,0,0), // velocity state vector
     "RTIG", v(0,0,0),
     "VTIG", v(0,0,0),
-    
+    "ALMCADR", LIST(0,0,0),
+    "FAILREG", LIST(0,0,0),
+    "CHCKLIST", LIST(0,0,0), // checklist codes
 
 
     "CDUX", v(0,0,0),
@@ -15,7 +17,7 @@ GLOBAL _CORE_MEMORY is LEXICON(
 
     "-TPER", 0,
     "TIG", 0,
-    "TOC", 0, // time of cutoff (Im unsure what was used by the atual AGC at the moment, but if anyone has any ideas i am open to the suggestion of which)
+    "TOC", 0, // time of cutoff (Im unsure what was used by the atual AGC at the moment, but if anyone has any ideas i am open to the suggestion of which) (revision: keeping just incase i need it later)
     "TFF", 0,
     "TTOGO", 0,
 
@@ -52,13 +54,40 @@ GLOBAL _CORE_MEMORY is LEXICON(
 
     // stuff i dont know about that much
     "VHFCNT", 0, // MARKS
-    "+MGA", 0
+    "+MGA", 0,
+
+
+    // entry variables
+    "LATLNGSPL", LATLNG(0,0),
+    "HEADSUP", 1, // +1 is heads up lift down, -1 is heads down lift up
+
+    "GMAX", 0, // unused for now (im unsure how to calculate it)
+    "VPRED", 0, // predicted at EI
+    "GAMMAEI", 0, // also unsure how to calculate
+
+    "RTGO", 0,
+    "VIO", 0,
+    "TFE", 0,
+    "TTE", 0,
+
+    "D", 0,
+    "RDOT", 0,
+    "RTGON64", 0
+
 ).
 
-GLOBAL _MEM_DATATYPES IS LEXICON(
-    "TIME", LIST("TFF", "GETI", "TIME2", "-TPER", "TTOGO", "TIG"),
-    "OCTAL", LIST("DAPDATR1", "DAPDATR2"),
-    "VEC", LIST("CDUX","THETAD","DELVLVC", "DELVIMU", "DELVOV", "VGBODY"),
-    "LENGTHS", LIST("VGDISP", "DVTOTAL", "DELVLVC","DELVIMU", "DELVOV", "VGBODY", "HAPOX", "HPERX", "HAPO", "HPER", "VMAGI", "HDOT", "ALT 1"),
-    "WEIGHTS", LIST("CSMMAS", "LEMMAS")
-).
+// Information on all the variables contained here
+
+// R - Current Position state vector (ship:position)
+// V - Current Velocity state vector (ship:velocity:orbit)
+// RTIG - Position at TIG
+// VTIG - velocity at TIG
+// ALRMCADR - Alarm info
+// FAILREG - program alarms (1202)
+// CHCKLIST - checklist codes requested by programs
+// CDUX - current gimbal angles
+// THETAD - AUTOMNV target gimbal angle
+// -TPER - time to perigee
+// TIG - time of of ignition
+// TFF - time of flight
+// TTOGO - 

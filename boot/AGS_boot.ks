@@ -16,3 +16,8 @@
 
 // Apollo 13: 
 // during the incident phase of the Apollo 13 flight, the AGS was used to ensure that the crew had a computer, as the AGS was a far less electrically intense system to run and operate, unlike the main LGC (power was very important to the mission getting home safely)
+
+GLOBAL _isCSM is FALSE.
+GLOBAL _isAGS is TRUE.
+GLOBAL _isLM is FALSE.
+GLOBAL _isLVDC is FALSE.

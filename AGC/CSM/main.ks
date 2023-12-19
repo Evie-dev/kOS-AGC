@@ -65,6 +65,12 @@ FUNCTION _AGC_INIT {
     runOncePath("0:/Common/unitConversion.ks").
 
     set _CORE_MEMORY:TIME0 TO TIME:SECONDS.
+
+    // A few variables to start with that are hardcoded in the actual AGC, but due to this being KSP, we need to know a few things off the bat:
+
+    // Are we in RO?
+
+    
 }
 
 FUNCTION _AGC_MAINLOOP {
@@ -270,5 +276,34 @@ FUNCTION _DAP_GETVECHMASS {
         set _rMass to _rMass+_CORE_MEMORY:LEMMAS.
     }
 
-    set _rMass to _rMass*0.453592.
+    set _rMass to _rMass.
+    return _rMass.
+}
+
+FUNCTION _RAISEALARM {
+    parameter alarmtoRaise is 0.
+
+    // raises new alarms and then activates the PROG light
+
+    // store the current R1 and R2 codes
+
+    local _R1_code is _CORE_MEMORY:FAILREG[0].
+    local _R2_code is _CORE_MEMORY:FAILREG[1].
+
+    set _CORE_MEMORY:FAILREG to LIST(alarmtoRaise, _R1_code, _R2_code).
+
+    // raise the program alarm
+
+    set _DSKYdisplayREG:LAMPS:PROG to true.
+}
+
+FUNCTION _CHECKLISTCODES {
+    parameter _code1 is 0, _code2 is 0, _code3 is 0.
+
+    set _CORE_MEMORY:CHCKLIST to LIST(_code1, _code2, _code3).
+}
+
+FUNCTION _CLEAR_WAITLIST {
+    _AGC_INPUTQUEUE:clear.
+    set ROUTINE_INDEXER to 0.
 }

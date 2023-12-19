@@ -8,10 +8,15 @@ FUNCTION P02_INIT {
 
 LOCAL FUNCTION P02_VARUPDT {
     
-    IF SHIP:STATUS = "FLYING" {
-        // first motion!
-        // go to P11
+    // await the liftoff descrite (message from the LVDC that we are flying and then continue to P11)
 
-        _AGC_PROGRAMUPDATE("P11").
+    IF NOT(CORE:MESSAGES:QUEUE:EMPTY) {
+        local _msg is CORE:MESSAGES:pop.
+
+        IF _msg:content = "SATURN LIFTOFF" {
+            // liftoff discrite
+
+            _AGC_PROGRAMUPDATE("11"). // P11 ENTRY
+        }
     }
 }

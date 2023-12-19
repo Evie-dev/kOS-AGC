@@ -532,6 +532,9 @@ FUNCTION getFlightPathAngle {
     return arccos(srm/(__v*r)).
 }
 
+
+// https://orbital-mechanics.space/classical-orbital-elements/orbital-elements-and-the-state-vector.html
+
 FUNCTION stateVectorIntegration {
     parameter stateP is ship:body:position, stateV is ship:velocity:orbit.
     local r_vec is stateP.
@@ -579,8 +582,58 @@ FUNCTION stateVectorIntegration {
         "Eccentricity", _e,
         "TrueAnomaly", nu
     ).
-    
 }
+
+
+// In the below segment i used https://orbital-mechanics.space/time-since-periapsis-and-keplers-equation/elliptical-orbit-example.html and looked at https://github.com/nuggreat/kOS-scripts/blob/Documented-Scripts/impact%20ETA/claculated_impact_eta.ks for extra guidance
+
+FUNCTION radius_to_true_anom {
+    parameter forRadius is altitude+body:radius, forSMA is ship:orbit:semimajoraxis, forEccentricity is ship:orbit:eccentricity.
+
+    local _ta is arcCos((-forSMA*forEccentricity^2 + forSMA - forRadius)/ (forEccentricity*forRadius)).
+
+    return lexicon(
+        "PEtoAP", _ta,
+        "APtoPE", 360-_ta
+    ).
+}
+
+FUNCTION getMeanAnomaly {
+    // returns the mean anomaly from the eccentric and true anomalies
+    parameter forEccentricity is ship:orbit:eccentricity, forTA is getElements():TrueAnomaly.
+    local e_anom_degrees is arctan2(sqrt((1-forEccentricity)/(1+forEccentricity))*tan(forTA/2), forEccentricity*cos(forTA)).
+    local _maDEG is e_anom_degrees-(forEccentricity*sin(e_anom_degrees)*constant:radtodeg).
+    return mod(_maDEG+360, 360).
+}
+
+FUNCTION time_of_flight_between_tas {
+    parameter forEccentricity is ship:orbit:eccentricity, forPeriod is ship:orbit:period, startTA is ship:orbit:trueanomaly, endTA is radius_to_true_anom(ship:orbit:periapsis+ship:body:radius):APtoPE. // by default tells us the time to PERIAPSIS
+
+    local M_1 is getMeanAnomaly(forEccentricity, startTA).
+    local M_2 is getMeanAnomaly(forEccentricity, endTA).
+
+    local TFF is forPeriod*((M_2-M_1)/360).
+
+    return MOD(TFF+forPeriod, forPeriod).
+}
+
+FUNCTION timeToRadius {
+    parameter targetRadius is ship:periapsis+body:radius.
+
+    set targetRadius to max(ship:orbit:periapsis, targetRadius).
+    local _ta is ship:orbit:trueanomaly.
+
+    // return the SHORTEST time
+
+    local _timeASCENDING is time_of_flight_between_tas(ship:orbit:eccentricity, ship:orbit:period, _ta, radius_to_true_anom(targetRadius):PEtoAP).
+    local _timeDESCENDING is time_of_flight_between_tas(ship:orbit:eccentricity, ship:orbit:period, _ta, radius_to_true_anom(targetRadius):APtoPE).
+
+    return lexicon(
+        "ASCENDING", _timeASCENDING,
+        "DESCENDING", _timeDESCENDING
+    ).
+}
+
 
 FUNCTION isLanded {
     return SHIP:STATUS = "SPLASHED" or SHIP:STATUS = "LANDED" OR SHIP:STATUS = "PRELAUNCH".

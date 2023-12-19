@@ -42,60 +42,30 @@ LOCAL FUNCTION loadPrograms {
     print "LOADING PROGRAMS COMPLETE!".
 }
 
-local _validPrograms is list(
-    "00", "01", "02", "11", "15", "27", "30", "40", "61", "62", "63", "64", "65", "66", "67"
-).
-local _pINIT is P____INIT@.
-
 FUNCTION _AGC_PROGRAMUPDATE {
     parameter newProgram is "00".
-    set _pINIT to P____INIT@.
     // allows the updating of the program based on the program list
-    local _newProgramSet is true.
+
     IF newProgram = "00" {
         // CMC - IDLE
-        set _pINIT to P00_INIT@.
+        P00_INIT().
     }
     ELSE IF newProgram = "01" {
         // prelaunch / service init
-        set _pINIT to P01_INIT@.
+        P01_INIT().
     } ELSE IF newProgram = "02" {
-        set _pINIT to P02_INIT@.
+        P02_INIT().
     } ELSE IF newProgram = "11" {
-        set _pINIT to P11_INIT@.
+        P11_INIT().
     } ELSE IF newProgram = "15" {
         // TLI monitor function
     } 
     ELSE IF newProgram = "27" {
-        set _pINIT to P27_INIT@.
+        P27_INIT().
     }
     ELSE IF newProgram = "30" {
-        set _pINIT to P30_INIT@.
+        P30_INIT().
     } ELSE IF newProgram = "40" {
-        set _pINIT to P40_INIT@.
-    } ELSE IF newProgram = "61" {
-        set _pINIT to P61_INIT@.
-    } ELSE IF newProgram = "62" {
-        set _pINIT to P62_INIT@.
-    } ELSE IF newProgram = "63" {
-        set _pINIT to P63_INIT@.
-    } ELSE IF newProgram = "64" {
-        set _pINIT to P64_INIT@.
-    } ELSE IF newProgram = "65" {
-        set _pINIT to P65_INIT@.
-    } ELSE IF newProgram = "66" {
-        set _pINIT to P66_INIT@.
-    } ELSE IF newProgram = "67" {
-        set _pINIT to P67_INIT@.
-    } ELSE {
-        set _newProgramSet to false.
+        P40_INIT().
     }
-    IF _newProgramSet {
-        _CLEAR_WAITLIST().
-    }
-    _pINIT:call.
-}
-
-LOCAL FUNCTION P____INIT {
-
 }

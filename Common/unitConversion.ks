@@ -43,6 +43,7 @@ FUNCTION convertUnit {
 
 // all of these are actually taken from the windows calculator so report inaccuracies to the developers of windows not me, though garbage in garbage out applies to make this work as if we convert using the same dataset we should come out with the same answer regardless even if one of the values has been converted incorrectly, converting it back should still give the original value!
 
+// 1 g = 9.80665 m/s
 LOCAL _CONVERSIONLEX is LEXICON(
     "ft", LEXICON(
         "ft", 1,
@@ -53,6 +54,7 @@ LOCAL _CONVERSIONLEX is LEXICON(
     "me", LEXICON(
         "me", 1,
         "ft", 3.28084,
+        "g", 1/9.80665,
         "mi", 0.000621,
         "nmi", 0.00054
     ),
@@ -68,6 +70,9 @@ LOCAL _CONVERSIONLEX is LEXICON(
         "mi", 1.150779,
         "ft", 6076.115,
         "me", 1852
+    ),
+    "g", LEXICON(
+        "me", 9.80665
     ),
 
     // weights
