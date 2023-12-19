@@ -108,10 +108,7 @@ LOCAL FUNCTION update_gmax {
 LOCAL FUNCTION update_vpred {
     // update altitude from 400k
     local _etaEI is timetoradius(_ei_altitude):DESCENDING.
-    local EIta is alt_to_ta(ship:orbit:semimajoraxis, ship:orbit:eccentricity, body, 121920)[1].
-    local _etaEI2 is time_betwene_two_ta(ship:orbit:eccentricity, ship:orbit:period, ship:orbit:trueanomaly, EIta).
-    print "EI eta: " + _etaEI.
-    set _CORE_MEMORY:VPRED to velocityAt(ship, time:seconds+_etaEI2):orbit:mag.
+    set _CORE_MEMORY:VPRED to velocityAt(ship, time:seconds+_etaEI):orbit:mag.
 }
 
 LOCAL FUNCTION update_gammaei {
@@ -163,8 +160,7 @@ LOCAL FUNCTION Update_RTOGO {
 
 LOCAL FUNCTION Predict_TFE {
     // first run variable
-    local EIta is alt_to_ta(ship:orbit:semimajoraxis, ship:orbit:eccentricity, body, 90656)[1].
-    local _etaEI2 is time_betwene_two_ta(ship:orbit:eccentricity, ship:orbit:period, ship:orbit:trueanomaly, EIta).
+    local _eita2 is timetoradius(_05g_altitude):DESCENDING.
     set _CORE_MEMORY:TFE to _CORE_MEMORY:TIME2+_etaEI2.
 }
 
@@ -173,8 +169,7 @@ LOCAL FUNCTION Update_TFE {
 }
 
 LOCAL FUNCTION Predict_VIO {
-    local EIta is alt_to_ta(ship:orbit:semimajoraxis, ship:orbit:eccentricity, body, 90656)[1].
-    local _etaEI2 is time_betwene_two_ta(ship:orbit:eccentricity, ship:orbit:period, ship:orbit:trueanomaly, EIta).
+    local _etaEI2 is timetoradius(_05g_altitude):DESCENDING.
     set _CORE_MEMORY:VIO to velocityAt(ship, time:seconds+_etaEI2):orbit:mag.
 }
 
@@ -186,32 +181,4 @@ LOCAL FUNCTION Update_RTOGO_N64 {
     // range to splash
 
     set _CORE_MEMORY:RTGON64 to _CORE_MEMORY:LATLNGSPL:distance.
-}
-
-
-// for testing only
-
-FUNCTION alt_to_ta {//returns a list of the true anomalies of the 2 points where the craft's orbit passes the given altitude
-	PARAMETER sma,ecc,bodyIn,altIn.
-	LOCAL rad IS altIn + bodyIn:RADIUS.
-	LOCAL taOfAlt IS ARCCOS((-sma * ecc^2 + sma - rad) / (ecc * rad)).
-	RETURN LIST(taOfAlt,360-taOfAlt).//first true anomaly will be as orbit goes from PE to AP
-}
-
-FUNCTION time_betwene_two_ta {//returns the difference in time between 2 true anomalies, traveling from taDeg1 to taDeg2
-	PARAMETER ecc,periodIn,taDeg1,taDeg2.
-	
-	LOCAL maDeg1 IS ta_to_ma(ecc,taDeg1).
-	LOCAL maDeg2 IS ta_to_ma(ecc,taDeg2).
-	
-	LOCAL timeDiff IS periodIn * ((maDeg2 - maDeg1) / 360).
-	
-	RETURN MOD(timeDiff + periodIn, periodIn).
-}
-
-FUNCTION ta_to_ma {//converts a true anomaly(degrees) to the mean anomaly (degrees) NOTE: only works for non hyperbolic orbits
-	PARAMETER ecc,taDeg.
-	LOCAL eaDeg IS ARCTAN2(SQRT(1-ecc^2) * SIN(taDeg), ecc + COS(taDeg)).
-	LOCAL maDeg IS eaDeg - (ecc * SIN(eaDeg) * CONSTANT:RADtoDEG).
-	RETURN MOD(maDeg + 360,360).
 }

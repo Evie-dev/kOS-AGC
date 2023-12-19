@@ -601,7 +601,7 @@ FUNCTION radius_to_true_anom {
 FUNCTION getMeanAnomaly {
     // returns the mean anomaly from the eccentric and true anomalies
     parameter forEccentricity is ship:orbit:eccentricity, forTA is getElements():TrueAnomaly.
-    local e_anom_degrees is arctan2(sqrt((1-forEccentricity)/(1+forEccentricity))*tan(forTA/2), forEccentricity*cos(forTA)).
+    local e_anom_degrees is arctan2(sqrt((1-forEccentricity)/(1+forEccentricity))*tan(forTA/2), forEccentricity+cos(forTA)).
     local _maDEG is e_anom_degrees-(forEccentricity*sin(e_anom_degrees)*constant:radtodeg).
     return mod(_maDEG+360, 360).
 }
@@ -627,6 +627,7 @@ FUNCTION timeToRadius {
 
     local _timeASCENDING is time_of_flight_between_tas(ship:orbit:eccentricity, ship:orbit:period, _ta, radius_to_true_anom(targetRadius):PEtoAP).
     local _timeDESCENDING is time_of_flight_between_tas(ship:orbit:eccentricity, ship:orbit:period, _ta, radius_to_true_anom(targetRadius):APtoPE).
+
 
     return lexicon(
         "ASCENDING", _timeASCENDING,
