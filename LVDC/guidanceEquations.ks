@@ -1,1 +1,0 @@
-// a set of guidance equations for the saturn rockets
